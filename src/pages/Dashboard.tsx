@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { TrendingUp, AlertTriangle, DollarSign, Users, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { getDashboardResumen } from '../api/dashboard'
@@ -28,6 +29,7 @@ const fmt = (n: number) => {
 }
 
 export const Dashboard = () => {
+  const navigate = useNavigate()
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-resumen'],
     queryFn: getDashboardResumen,

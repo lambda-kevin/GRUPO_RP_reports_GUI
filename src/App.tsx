@@ -3,7 +3,7 @@ import { AppLayout } from './components/layout/AppLayout'
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
-import { Bancos } from './pages/Bancos'
+import { DashboardBancos } from './pages/DashboardBancos'
 import { CarteraInforme } from './pages/CarteraInforme'
 import { Pedidos } from './pages/Pedidos'
 import { AgenteChat } from './pages/AgenteChat'
@@ -22,7 +22,7 @@ export default function App() {
         >
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/bancos" element={<Bancos />} />
+          <Route path="/bancos" element={<DashboardBancos />} />
           <Route path="/cartera" element={<CarteraInforme />} />
           <Route path="/pedidos" element={<Pedidos />} />
           <Route path="/agente" element={<AgenteChat />} />

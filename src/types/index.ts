@@ -217,3 +217,51 @@ export interface LogEnvio {
   archivo: string
   created_at: string
 }
+
+// Dashboard de Bancos - Ventas Netas vs Recaudo
+export interface DashboardBancosKPIs {
+  ventas_netas: number
+  ventas_netas_fmt: string
+  recaudo: number
+  recaudo_fmt: string
+  porcentaje_recaudo: number
+}
+
+export interface VentaMensual {
+  mes: string
+  mes_num: number
+  ventas_netas: number
+  recaudo: number
+}
+
+export interface VentaCiudad {
+  ciudad: string
+  ciudad_original?: string | null
+  ventas: number
+  recaudo: number
+}
+
+export interface OpcionesMes {
+  value: number
+  label: string
+}
+
+export interface DashboardBancosRespuesta {
+  año: number
+  filtros_aplicados: {
+    mes: string | null
+    ciudad: string | null
+    vendedor: string | null
+  }
+  kpis: DashboardBancosKPIs
+  ventas_por_mes: VentaMensual[]
+  ventas_por_ciudad: VentaCiudad[]
+  opciones_filtros: {
+    ciudades: string[]
+    meses: OpcionesMes[]
+    vendedores: string[]
+    años: number[]
+  }
+  ultima_actualizacion: string
+  nota?: string
+}

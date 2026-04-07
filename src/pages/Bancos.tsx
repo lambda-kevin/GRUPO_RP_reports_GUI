@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { Building2, CheckCircle, XCircle } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Building2, CheckCircle, XCircle, BarChart3 } from 'lucide-react'
 import { getBancos } from '../api/dashboard'
 import { Header } from '../components/layout/Header'
 import { Card } from '../components/ui/Card'
@@ -12,6 +13,7 @@ import { es } from 'date-fns/locale'
 const fmt = (n: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
 
 export const Bancos = () => {
+  const navigate = useNavigate()
   const { data, isLoading } = useQuery({
     queryKey: ['bancos'],
     queryFn: () => getBancos(),
@@ -19,7 +21,15 @@ export const Bancos = () => {
 
   return (
     <div>
-      <Header title="Bancos" subtitle="Conciliacion bancaria diaria" />
+      <Header title="Bancos" subtitle="Conciliacion bancaria diaria">
+        <button
+          onClick={() => navigate('/bancos/dashboard')}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-lime-600 hover:bg-lime-700 text-white font-medium rounded-lg transition-colors shadow-md hover:shadow-lg"
+        >
+          <BarChart3 className="h-5 w-5" />
+          Ver Dashboard de Ventas vs Recaudo
+        </button>
+      </Header>
       <div className="p-6">
         {isLoading ? (
           <div className="flex justify-center py-12">

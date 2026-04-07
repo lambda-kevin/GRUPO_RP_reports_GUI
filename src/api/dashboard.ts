@@ -1,10 +1,20 @@
 import apiClient from './client'
-import type { DashboardResumen, SnapBancos, SnapCartera, LogEnvio, Factura, CiudadAgregada, ProximoVencimiento, AnalisisIA, VendedorAgregado } from '../types'
+import type { DashboardResumen, SnapBancos, SnapCartera, LogEnvio, Factura, CiudadAgregada, ProximoVencimiento, AnalisisIA, VendedorAgregado, DashboardBancosRespuesta } from '../types'
 
 export type FiltroFecha = { fecha?: string; fecha_desde?: string; fecha_hasta?: string }
 
 export const getDashboardResumen = async (): Promise<DashboardResumen> => {
   const { data } = await apiClient.get('/dashboard/resumen/')
+  return data
+}
+
+export const getDashboardBancos = async (params?: {
+  año?: number
+  mes?: number
+  ciudad?: string
+  vendedor?: string
+}): Promise<DashboardBancosRespuesta> => {
+  const { data } = await apiClient.get('/dashboard/bancos/', { params: params ?? {} })
   return data
 }
 
