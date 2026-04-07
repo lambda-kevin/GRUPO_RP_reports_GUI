@@ -1,6 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import {
+  ComposedChart, BarChart, Bar, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer,
+} from 'recharts'
+import type { AxiosError } from 'axios'
 import { getDashboardBancos } from '../api/dashboard'
 import { Spinner } from '../components/ui/Spinner'
 import { Card } from '../components/ui/Card'
@@ -78,15 +82,37 @@ export const DashboardBancos = () => {
   const [pageCiudades, setPageCiudades] = useState(1)
   const [pageMensual, setPageMensual] = useState(1)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ['dashboard-bancos', { año, mes, ciudad, vendedor }],
     queryFn: () => getDashboardBancos({ año, mes, ciudad, vendedor }),
   })
+
+  useEffect(() => {
+    if (!data) return
+    if (data.ventas_por_mes.length > 0) return
+    const primerAnioConDatos = data.opciones_filtros.años?.[0]
+    if (primerAnioConDatos && primerAnioConDatos !== año) {
+      setAño(primerAnioConDatos)
+    }
+  }, [data, año])
 
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Spinner className="h-8 w-8 text-primary-600" />
+      </div>
+    )
+  }
+
+  if (isError) {
+    const errorData = (error as AxiosError<{ message?: string; error?: string }>)?.response?.data
+    const message = errorData?.message || errorData?.error || 'No se pudo consultar datos reales en Saint.'
+    return (
+      <div className="p-6">
+        <div className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-800">
+          <p className="font-bold">Error cargando Bancos</p>
+          <p className="text-sm mt-1">{message}</p>
+        </div>
       </div>
     )
   }
@@ -212,7 +238,7 @@ export const DashboardBancos = () => {
       <div className="p-7 space-y-7">
         {/* KPIs */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="border-l-4 border-primary-500 shadow-sm">
+          <Card className="border-l-4 border-green-600 shadow-sm">
             <div className="p-4">
               <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">Ventas Netas</div>
               <div className="text-3xl font-semibold text-gray-900">{kpis.ventas_netas_fmt}</div>
@@ -220,7 +246,7 @@ export const DashboardBancos = () => {
             </div>
           </Card>
 
-          <Card className="border-l-4 border-blue-600 shadow-sm">
+          <Card className="border-l-4 border-green-400 shadow-sm">
             <div className="p-4">
               <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">Recaudo</div>
               <div className="text-3xl font-semibold text-gray-900">{kpis.recaudo_fmt}</div>
@@ -228,7 +254,7 @@ export const DashboardBancos = () => {
             </div>
           </Card>
 
-          <Card className="border-l-4 border-purple-600 shadow-sm">
+          <Card className="border-l-4 border-emerald-500 shadow-sm">
             <div className="p-4">
               <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">Porcentaje de Recaudo</div>
               <div className="text-3xl font-semibold text-gray-900">
@@ -266,15 +292,15 @@ export const DashboardBancos = () => {
         <Card>
           <div className="p-4">
             <h2 className="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200">
-              Ventas Netas vs Recaudo por Mes
+              VENTAS NETAS VS RECAUDO POR MES
             </h2>
             <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={data.ventas_por_mes}>
+              <ComposedChart data={mesesOrdenados}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis 
-                  dataKey="mes" 
-                  stroke="#6b7280" 
-                  style={{ fontSize: '12px' }} 
+                <XAxis
+                  dataKey="mes"
+                  stroke="#6b7280"
+                  style={{ fontSize: '12px' }}
                 />
                 <YAxis
                   stroke="#6b7280"
@@ -291,9 +317,17 @@ export const DashboardBancos = () => {
                   formatter={(value: number) => fmt(value)}
                 />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Bar dataKey="ventas_netas" name="Ventas Netas" fill="#56b781" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="recaudo" name="Recaudo" fill="#1e40af" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <Bar dataKey="ventas_netas" name="Ventas Netas" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                <Line
+                  type="monotone"
+                  dataKey="recaudo"
+                  name="Recaudo"
+                  stroke="#15803d"
+                  strokeWidth={2.5}
+                  dot={{ fill: '#15803d', r: 4 }}
+                  activeDot={{ r: 6 }}
+                />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         </Card>

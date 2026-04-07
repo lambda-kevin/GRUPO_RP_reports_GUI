@@ -3,22 +3,22 @@ import {
   ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
   Tooltip as RTooltip, ReferenceLine, ResponsiveContainer, Cell, Area,
 } from 'recharts'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
+import type { AxiosError } from 'axios'
 import {
-  Wallet, RefreshCw, TrendingUp, Brain,
+  Wallet, TrendingUp,
   AlertTriangle, Clock, DollarSign, ChevronDown, ChevronRight,
-  Users, Calendar, MapPin, UserCheck, Sparkles,
-  Database, CheckCircle, Info, Search, ShieldAlert,
+  Calendar, MapPin, UserCheck, Search, ShieldAlert,
 } from 'lucide-react'
 import {
-  getCartera, syncCartera, getProximosVencimientos, getCiudades,
-  getCarteraComerciales, getFacturas, generarAnalisisIA, getAnalisisIA,
+  getCartera, getProximosVencimientos, getCiudades,
+  getCarteraComerciales, getFacturas,
   type FiltroFecha,
 } from '../api/dashboard'
 import { Spinner } from '../components/ui/Spinner'
 import type {
   SnapCartera, Factura, ProximoVencimiento,
-  CiudadAgregada, VendedorAgregado, AnalisisIA,
+  CiudadAgregada, VendedorAgregado,
 } from '../types'
 
 // ─── Formateo ──────────────────────────────────────────────────────────────────
@@ -756,28 +756,10 @@ export const CarteraInforme = () => {
   const [pageCiudades, setPageCiudades] = useState(1)
   const [pageComerciales, setPageComerciales] = useState(1)
 
-  const qc = useQueryClient()
-
   const carteraQ  = useQuery({ queryKey: ['cartera', filtro],     queryFn: () => getCartera(filtro) })
   const proximosQ = useQuery({ queryKey: ['proximos'],             queryFn: getProximosVencimientos })
   const ciudadesQ = useQuery({ queryKey: ['ciudades', filtro],     queryFn: () => getCiudades(filtro) })
   const comercQ   = useQuery({ queryKey: ['comerciales', filtro],  queryFn: () => getCarteraComerciales(filtro) })
-  const analisisQ = useQuery<AnalisisIA, Error>({ queryKey: ['analisis-ia'], queryFn: () => getAnalisisIA(), retry: false })
-
-  const syncMut = useMutation({
-    mutationFn: syncCartera,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['cartera'] })
-      qc.invalidateQueries({ queryKey: ['ciudades'] })
-      qc.invalidateQueries({ queryKey: ['comerciales'] })
-      qc.invalidateQueries({ queryKey: ['proximos'] })
-    },
-  })
-
-  const iaMut = useMutation({
-    mutationFn: generarAnalisisIA,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['analisis-ia'] }),
-  })
 
   const toggleSet = (set: Set<string>, key: string) => {
     const s = new Set(set)
@@ -799,21 +781,11 @@ export const CarteraInforme = () => {
     setPageComerciales(1)
   }
 
-  // Usar datos reales si existen; si no, mostrar maqueta de muestra
-  const carteraReal = carteraQ.data ?? []
-  const isDemoMode  = carteraReal.length === 0
-  const cartera     = isDemoMode ? MOCK_CARTERA : carteraReal
-
-  const proximosReal = proximosQ.data?.proximos_vencimientos ?? []
-  const proximos     = isDemoMode ? MOCK_PROXIMOS : proximosReal
-
-  const ciudadesReal = ciudadesQ.data?.ciudades ?? []
-  const ciudades     = isDemoMode ? MOCK_CIUDADES_DATA.ciudades : ciudadesReal
-
-  const comercialesReal = comercQ.data?.comerciales ?? []
-  const comerciales     = isDemoMode ? MOCK_COMERCIALES_DATA.comerciales : comercialesReal
-
-  const analisis = analisisQ.data
+  // Solo datos reales
+  const cartera = carteraQ.data ?? []
+  const proximos = proximosQ.data?.proximos_vencimientos ?? []
+  const ciudades = ciudadesQ.data?.ciudades ?? []
+  const comerciales = comercQ.data?.comerciales ?? []
 
   // KPIs
   const totalCartera = cartera.reduce((s, c) => s + c.total_deuda, 0)
@@ -821,7 +793,7 @@ export const CarteraInforme = () => {
   const totalVigente = cartera.reduce((s, c) => s + c.vigente, 0)
   const criticos90   = cartera.reduce((s, c) => s + c.dias_91_180 + c.mas_180_dias, 0)
   const nCriticos    = cartera.filter(c => c.dias_91_180 + c.mas_180_dias > 0).length
-  const fechaCorte   = isDemoMode ? DEMO_DATE : (cartera[0]?.fecha_corte ?? null)
+  const fechaCorte = cartera[0]?.fecha_corte ?? null
   const carteraFiltrada = cartera.filter(c => filtroRiesgo === 'todos' || nivelRiesgo(c) === filtroRiesgo)
   const carteraEdadesPages = totalPages(carteraFiltrada.length)
   const carteraEdadesPageItems = paginate(carteraFiltrada, Math.min(pageCarteraEdades, carteraEdadesPages))
@@ -832,7 +804,16 @@ export const CarteraInforme = () => {
   const comercialesPages = totalPages(comerciales.length)
   const comercialesPageItems = paginate(comerciales, Math.min(pageComerciales, comercialesPages))
 
-  const cargando = false // siempre mostramos contenido (real o muestra)
+  const cargando = carteraQ.isLoading || proximosQ.isLoading || ciudadesQ.isLoading || comercQ.isLoading
+  const dataError =
+    (carteraQ.error as AxiosError<{ message?: string; error?: string }>) ||
+    (proximosQ.error as AxiosError<{ message?: string; error?: string }>) ||
+    (ciudadesQ.error as AxiosError<{ message?: string; error?: string }>) ||
+    (comercQ.error as AxiosError<{ message?: string; error?: string }>)
+  const errorMsg =
+    dataError?.response?.data?.message ||
+    dataError?.response?.data?.error ||
+    (dataError ? 'No se pudo consultar la data real de Saint.' : null)
 
   return (
     <div className="min-h-screen bg-[#f4f6fa]">
@@ -846,7 +827,7 @@ export const CarteraInforme = () => {
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight">
               Informe de Cartera — Grupo RP
             </h1>
-            {!isDemoMode && fechaCorte && (
+            {fechaCorte && (
                 <span className="text-xs text-white/60 mt-0.5 block">
                   Corte: {fechaCorte}
                 </span>
@@ -876,33 +857,28 @@ export const CarteraInforme = () => {
             </button>
           </div>
 
-          {/* Sincronizar */}
-          <div className="flex flex-col items-end gap-0.5">
-            <button
-              onClick={() => syncMut.mutate()}
-              disabled={syncMut.isPending}
-              title="Sincronizar desde Saint"
-              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 border border-white/15 px-3 py-2 rounded-lg transition-colors disabled:opacity-50 text-sm"
-            >
-              <RefreshCw className={`h-4 w-4 ${syncMut.isPending ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{syncMut.isPending ? 'Sincronizando…' : 'Sincronizar'}</span>
-            </button>
-            {syncMut.isSuccess && (
-              <span className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1">
-                <CheckCircle className="h-3 w-3" /> Sincronizado
-              </span>
-            )}
-            {syncMut.isError && (
-              <span
-                className="text-[10px] text-red-400 font-semibold flex items-center gap-1 max-w-[200px] truncate"
-                title={(syncMut.error as any)?.response?.data?.message ?? String(syncMut.error)}
-              >
-                <AlertTriangle className="h-3 w-3 shrink-0" /> Error — hover para detalle
-              </span>
-            )}
+          <div className="text-xs text-white/70 ml-2">
+            Datos en línea
           </div>
         </div>
       </div>
+
+      {cargando && (
+        <div className="px-6 lg:px-10 pt-6">
+          <div className="bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-600 flex items-center gap-2">
+            <Spinner className="h-4 w-4" /> Consultando datos...
+          </div>
+        </div>
+      )}
+
+      {errorMsg && (
+        <div className="px-6 lg:px-10 pt-6">
+          <div className="bg-red-50 border border-red-300 rounded-xl px-4 py-3 text-sm text-red-800">
+            <p className="font-bold">Error consultando cartera</p>
+            <p className="mt-1">{errorMsg}</p>
+          </div>
+        </div>
+      )}
 
       {/* ── KPIs ────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 px-6 lg:px-10 py-6">
@@ -1024,10 +1000,7 @@ export const CarteraInforme = () => {
                             </span>
                           </td>
                         </tr>
-                        {isOpen && (isDemoMode
-                          ? <FilaFacturasMock nit={c.cliente_nit} cols={11} />
-                          : <FilaFacturas     nit={c.cliente_nit} cols={11} />
-                        )}
+                        {isOpen && <FilaFacturas nit={c.cliente_nit} cols={11} />}
                       </Fragment>
                     )
                   })}
@@ -1380,90 +1353,6 @@ export const CarteraInforme = () => {
               pages={comercialesPages}
               onChange={setPageComerciales}
             />
-          </section>
-
-          {/* ══════════════════════════════════════════════════════════════
-              SECCIÓN 5 — ANÁLISIS IA
-          ══════════════════════════════════════════════════════════════ */}
-          <section className="bg-white rounded-2xl shadow-sm p-7">
-            <SectionHeader
-              icon={<Brain className="h-7 w-7" />}
-              title="ANÁLISIS INTELIGENTE — DIAGNÓSTICO Y PLAN DE ACCIÓN"
-              color="indigo"
-            />
-
-            <div className="flex flex-wrap items-center gap-4 mb-6">
-              <button
-                onClick={() => iaMut.mutate()}
-                disabled={iaMut.isPending}
-                className="flex items-center gap-2 bg-gradient-to-r from-[#0f3460] to-[#8e44ad] text-white font-bold px-6 py-3 rounded-xl hover:opacity-90 transition-opacity disabled:opacity-50 text-lg"
-              >
-                {iaMut.isPending
-                  ? <><Spinner className="h-5 w-5" /> Generando análisis…</>
-                  : <><Sparkles className="h-5 w-5" /> Generar Análisis con IA</>}
-              </button>
-
-              {analisis && (
-                <div className="text-sm text-gray-500 flex flex-wrap gap-4">
-                  {analisis.generado_at && (
-                    <span className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      {new Date(analisis.generado_at).toLocaleString('es-CO')}
-                    </span>
-                  )}
-                  {analisis.modelo && (
-                    <span className="flex items-center gap-1">
-                      <Brain className="h-4 w-4" />
-                      {analisis.modelo}
-                    </span>
-                  )}
-                  {analisis.tokens_usados && (
-                    <span className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      {analisis.tokens_usados.toLocaleString('es-CO')} tokens
-                    </span>
-                  )}
-                  {analisis.tiempo_generacion && (
-                    <span className="flex items-center gap-1">
-                      <Clock className="h-4 w-4" />
-                      {analisis.tiempo_generacion.toFixed(1)}s
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {iaMut.isError && (
-              <div className="bg-red-50 border border-red-200 text-red-800 rounded-xl px-5 py-4 mb-4 text-base">
-                Error al generar el análisis. Verifique que ANTHROPIC_API_KEY esté configurada.
-              </div>
-            )}
-
-            {analisisQ.isLoading && (
-              <div className="flex items-center gap-3 text-gray-400 text-base py-6">
-                <Spinner className="h-6 w-6" /> Cargando análisis previo…
-              </div>
-            )}
-
-            {!analisis && !analisisQ.isLoading && !iaMut.isPending && (
-              <div className="bg-gradient-to-br from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl p-8 text-center">
-                <Brain className="h-16 w-16 text-indigo-300 mx-auto mb-4" />
-                <p className="text-lg text-indigo-700 font-semibold">
-                  Haga clic en <strong>"Generar Análisis con IA"</strong> para obtener un diagnóstico
-                  ejecutivo con recomendaciones de gestión y recaudo.
-                </p>
-                <p className="text-base text-indigo-500 mt-2">
-                  El análisis considera el período filtrado, los clientes críticos, antigüedad de la deuda y cartera por ciudad y comercial.
-                </p>
-              </div>
-            )}
-
-            {analisis?.contenido_html && (
-              <div
-                className="prose prose-lg max-w-none border border-gray-200 rounded-xl p-8 bg-gray-50 text-base leading-relaxed"
-                dangerouslySetInnerHTML={{ __html: analisis.contenido_html }}
-              />
-            )}
           </section>
 
         </div>

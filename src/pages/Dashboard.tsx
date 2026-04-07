@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { TrendingUp, AlertTriangle, DollarSign, Users, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { TrendingUp, AlertTriangle, DollarSign, Users, CheckCircle, XCircle, Clock, Building2, Activity } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { getDashboardResumen } from '../api/dashboard'
 import { Header } from '../components/layout/Header'
@@ -79,6 +79,42 @@ export const Dashboard = () => {
       />
 
       <div className="p-7 space-y-7">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card className="shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                <Building2 className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase font-semibold">Bancos activos</p>
+                <p className="text-xl font-extrabold text-gray-900">{bancos ? bancos.total_transacciones.toLocaleString('es-CO') : '0'}</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase font-semibold">Clientes críticos</p>
+                <p className="text-xl font-extrabold text-gray-900">{cartera ? cartera.top_criticos.length : 0}</p>
+              </div>
+            </div>
+          </Card>
+          <Card className="shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
+                <Activity className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 uppercase font-semibold">Estado general</p>
+                <p className="text-xl font-extrabold text-gray-900">{alertas?.[0]?.titulo ?? 'Sin alertas'}</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+
         {/* Alertas */}
         {alertas?.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

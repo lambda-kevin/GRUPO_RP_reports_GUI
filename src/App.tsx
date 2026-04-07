@@ -5,7 +5,6 @@ import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { DashboardBancos } from './pages/DashboardBancos'
 import { CarteraInforme } from './pages/CarteraInforme'
-import { Pedidos } from './pages/Pedidos'
 import { AgenteChat } from './pages/AgenteChat'
 
 export default function App() {
@@ -24,7 +23,6 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/bancos" element={<DashboardBancos />} />
           <Route path="/cartera" element={<CarteraInforme />} />
-          <Route path="/pedidos" element={<Pedidos />} />
           <Route path="/agente" element={<AgenteChat />} />
         </Route>
         <Route path="*" element={<Navigate to="/dashboard" replace />} />

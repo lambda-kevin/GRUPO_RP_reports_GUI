@@ -29,17 +29,6 @@ export const getCartera = async (filtro?: FiltroFecha): Promise<SnapCartera[]> =
   return data.results ?? data
 }
 
-export const syncCartera = async (): Promise<{
-  success: boolean
-  message: string
-  total_clientes?: number
-  fecha_corte?: string
-  output?: string
-}> => {
-  const { data } = await apiClient.post('/cartera/sync/')
-  return data
-}
-
 export const getFacturas = async (cliente_nit: string): Promise<{
   cliente_nit: string
   facturas: Factura[]
