@@ -35,6 +35,18 @@ const fmtM = (n: number) => {
   return `$${n.toFixed(0)}`
 }
 
+const fmtParetoM = (n: number) => {
+  if (n >= 1_000_000_000) return `$${Math.round(n / 1_000_000_000)}B`
+  if (n >= 1_000_000) return `$${Math.round(n / 1_000_000)}M`
+  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`
+  return `$${Math.round(n)}`
+}
+
+const PAGE_SIZE = 6
+const totalPages = (items: number) => Math.max(1, Math.ceil(items / PAGE_SIZE))
+const paginate = <T,>(items: T[], page: number) =>
+  items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
 const hoy = () => new Date().toISOString().slice(0, 10)
 const primerDiaMes = () => {
   const d = new Date()
@@ -81,8 +93,8 @@ const buildPareto = (cartera: SnapCartera[]): ParetoItem[] => {
       items.push({
         nombre: corto.length > 18 ? corto.slice(0, 17) + '…' : corto,
         deuda: c.total_deuda,
-        pct: parseFloat(pct.toFixed(1)),
-        acumulado: parseFloat(acum.toFixed(1)),
+        pct: Math.round(pct),
+        acumulado: Math.round(acum),
         color: NIVEL_COLOR[nivel],
         esOtros: false,
       })
@@ -98,7 +110,7 @@ const buildPareto = (cartera: SnapCartera[]): ParetoItem[] => {
     items.push({
       nombre: 'Otros',
       deuda: otrosTotal,
-      pct: parseFloat(pctOtros.toFixed(1)),
+      pct: Math.round(pctOtros),
       acumulado: 100,
       color: '#94a3b8',
       esOtros: true,
@@ -115,9 +127,9 @@ const ParetoTooltip = ({ active, payload, label }: any) => {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[200px]">
       <p className="font-bold text-gray-800 mb-1">{label}</p>
-      <p className="text-slate-700">Deuda: <strong>{fmtM(d.deuda)}</strong></p>
-      <p className="text-blue-600">% del total: <strong>{d.pct}%</strong></p>
-      <p className="text-purple-700">Acumulado: <strong>{d.acumulado}%</strong></p>
+      <p className="text-slate-700">Deuda: <strong>{fmtParetoM(d.deuda)}</strong></p>
+      <p className="text-blue-600">% del total: <strong>{Math.round(d.pct)}%</strong></p>
+      <p className="text-purple-700">Acumulado: <strong>{Math.round(d.acumulado)}%</strong></p>
     </div>
   )
 }
@@ -127,6 +139,10 @@ const SeccionPareto = ({ cartera, totalCartera }: {
   totalCartera: number
 }) => {
   const datos = buildPareto(cartera)
+  const clientesOrdenados = [...cartera].sort((a, b) => b.total_deuda - a.total_deuda)
+  const [pageParetoClientes, setPageParetoClientes] = useState(1)
+  const paretoPages = totalPages(clientesOrdenados.length)
+  const paretoItems = paginate(clientesOrdenados, Math.min(pageParetoClientes, paretoPages))
   if (datos.length === 0) return null
 
   // Clientes individuales que suman el 80% (excluye la barra "Otros")
@@ -136,10 +152,10 @@ const SeccionPareto = ({ cartera, totalCartera }: {
     <section className="bg-white rounded-2xl shadow-sm p-7">
       <div className="flex items-start justify-between gap-4 mb-5">
         <h2 className="text-2xl font-extrabold text-gray-800">CONCENTRACIÓN DE CARTERA</h2>
-        <div className="shrink-0 bg-purple-50 border border-purple-200 rounded-xl px-4 py-2 text-center">
-          <p className="text-xs text-purple-600 font-semibold uppercase tracking-wide">Regla 80/20</p>
-          <p className="text-2xl font-extrabold text-purple-800">{clientesEn80} clientes</p>
-          <p className="text-xs text-purple-600">concentran el <strong>80%</strong> de la deuda</p>
+        <div className="shrink-0 bg-[#eef2ff] border border-[#c7d2fe] rounded-xl px-4 py-2 text-center">
+          <p className="text-xs text-[#1a1a2e] font-semibold uppercase tracking-wide">Regla 80/20</p>
+          <p className="text-2xl font-extrabold text-[#1a1a2e]">{clientesEn80} clientes</p>
+          <p className="text-sm text-[#1a1a2e]">concentran el <strong>80%</strong> de la deuda</p>
         </div>
       </div>
 
@@ -149,7 +165,7 @@ const SeccionPareto = ({ cartera, totalCartera }: {
 
           <XAxis
             dataKey="nombre"
-            tick={{ fontSize: 11, fill: '#6b7280' }}
+            tick={{ fontSize: 16, fill: '#111827', fontWeight: 700 }}
             angle={-35}
             textAnchor="end"
             height={70}
@@ -159,9 +175,9 @@ const SeccionPareto = ({ cartera, totalCartera }: {
           {/* Eje izquierdo: montos */}
           <YAxis
             yAxisId="left"
-            tickFormatter={v => fmtM(v)}
-            tick={{ fontSize: 11, fill: '#6b7280' }}
-            width={60}
+            tickFormatter={v => fmtParetoM(v)}
+            tick={{ fontSize: 16, fill: '#111827', fontWeight: 700 }}
+            width={88}
           />
 
           {/* Eje derecho: porcentaje acumulado */}
@@ -170,8 +186,8 @@ const SeccionPareto = ({ cartera, totalCartera }: {
             orientation="right"
             domain={[0, 100]}
             tickFormatter={v => `${v}%`}
-            tick={{ fontSize: 11, fill: '#7c3aed' }}
-            width={45}
+            tick={{ fontSize: 16, fill: '#111827', fontWeight: 700 }}
+            width={62}
           />
 
           <RTooltip content={<ParetoTooltip />} />
@@ -180,10 +196,10 @@ const SeccionPareto = ({ cartera, totalCartera }: {
           <ReferenceLine
             yAxisId="right"
             y={80}
-            stroke="#7c3aed"
+            stroke="#1a1a2e"
             strokeDasharray="6 3"
-            strokeWidth={2}
-            label={{ value: '80%', position: 'insideRight', fontSize: 11, fill: '#7c3aed' }}
+            strokeWidth={2.5}
+            label={{ value: '80%', position: 'insideRight', fontSize: 14, fill: '#111827', fontWeight: 700 }}
           />
 
           {/* Barras coloreadas por nivel de riesgo */}
@@ -198,16 +214,16 @@ const SeccionPareto = ({ cartera, totalCartera }: {
             yAxisId="right"
             type="monotone"
             dataKey="acumulado"
-            stroke="#7c3aed"
-            strokeWidth={2.5}
-            dot={{ r: 3, fill: '#7c3aed', strokeWidth: 0 }}
-            activeDot={{ r: 5 }}
+            stroke="#1a1a2e"
+            strokeWidth={3}
+            dot={{ r: 4, fill: '#1a1a2e', strokeWidth: 0 }}
+            activeDot={{ r: 6 }}
           />
         </ComposedChart>
       </ResponsiveContainer>
 
       {/* Leyenda */}
-      <div className="flex flex-wrap items-center gap-5 mt-3 text-xs text-gray-600">
+      <div className="flex flex-wrap items-center gap-5 mt-3 text-sm text-gray-900 font-semibold">
         <span className="flex items-center gap-1.5">
           <span className="w-4 h-3 rounded-sm inline-block bg-[#b91c1c]" /> Crítico (+90d)
         </span>
@@ -221,13 +237,62 @@ const SeccionPareto = ({ cartera, totalCartera }: {
           <span className="w-4 h-3 rounded-sm inline-block bg-[#16a34a]" /> Al día
         </span>
         <span className="flex items-center gap-1.5 ml-4 border-l border-gray-200 pl-4">
-          <svg width="24" height="6"><line x1="0" y1="3" x2="24" y2="3" stroke="#7c3aed" strokeWidth="2.5" /></svg>
+          <svg width="24" height="6"><line x1="0" y1="3" x2="24" y2="3" stroke="#1a1a2e" strokeWidth="2.5" /></svg>
           % acumulado (eje derecho)
         </span>
         <span className="flex items-center gap-1.5">
-          <svg width="24" height="6"><line x1="0" y1="3" x2="24" y2="3" stroke="#7c3aed" strokeWidth="2" strokeDasharray="6 3" /></svg>
+          <svg width="24" height="6"><line x1="0" y1="3" x2="24" y2="3" stroke="#1a1a2e" strokeWidth="2" strokeDasharray="6 3" /></svg>
           Umbral 80%
         </span>
+      </div>
+
+      <div className="mt-7 border border-gray-200 rounded-xl overflow-hidden">
+        <div className="px-4 py-3 bg-[#1a1a2e] text-white">
+          <h3 className="text-lg font-extrabold">CLIENTES — DE MAYOR A MENOR DEUDA</h3>
+          <p className="text-sm text-white/80">{clientesOrdenados.length} clientes ordenados por saldo total</p>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-base">
+            <thead className="bg-slate-100 text-slate-700 text-sm">
+              <tr>
+                <th className="px-4 py-3 text-left w-10">#</th>
+                <th className="px-4 py-3 text-left">Cliente</th>
+                <th className="px-4 py-3 text-left">Ciudad</th>
+                <th className="px-4 py-3 text-left">Comercial</th>
+                <th className="px-4 py-3 text-right">Total deuda</th>
+                <th className="px-4 py-3 text-right">+90d</th>
+                <th className="px-4 py-3 text-center">% participación</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paretoItems.map((c, idx) => {
+                const deudaCritica = c.dias_91_180 + c.mas_180_dias
+                const participacion = totalCartera > 0 ? (c.total_deuda / totalCartera) * 100 : 0
+                return (
+                  <tr key={c.id} className="border-t border-gray-100 hover:bg-slate-50">
+                    <td className="px-4 py-3 text-gray-400 font-mono text-sm">{(Math.min(pageParetoClientes, paretoPages) - 1) * PAGE_SIZE + idx + 1}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-bold text-gray-900">{c.cliente_nombre}</p>
+                      <p className="text-xs text-gray-500 font-mono mt-0.5">NIT {c.cliente_nit}</p>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{c.ciudad || '—'}</td>
+                    <td className="px-4 py-3 text-gray-700">{c.vendedor || '—'}</td>
+                    <td className="px-4 py-3 text-right font-extrabold text-[#0f3460]">{fmtM(c.total_deuda)}</td>
+                    <td className="px-4 py-3 text-right font-bold text-red-800">{fmtM(deudaCritica)}</td>
+                    <td className="px-4 py-3 text-center font-semibold text-gray-700">{participacion.toFixed(0)}%</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-4 py-3">
+          <PaginationControls
+            page={Math.min(pageParetoClientes, paretoPages)}
+            pages={paretoPages}
+            onChange={setPageParetoClientes}
+          />
+        </div>
       </div>
     </section>
   )
@@ -506,39 +571,6 @@ const rowBgCls = (nivel: string) => ({
   ok:      'bg-white',
 }[nivel] ?? 'bg-white')
 
-// ─── Barra de antigüedad ────────────────────────────────────────────────────────
-
-interface AgingProps {
-  vigente: number; d130: number; d3160: number; d6190: number; mas90: number; total: number
-}
-const AgingBar = ({ vigente, d130, d3160, d6190, mas90, total }: AgingProps) => {
-  const p = (v: number) => total > 0 ? Math.max(0, (v / total) * 100).toFixed(1) : '0'
-  return (
-    <div
-      className="flex h-4 rounded-full overflow-hidden min-w-[140px] bg-gray-100"
-      title={`Vigente: ${fmtM(vigente)} | 1-30d: ${fmtM(d130)} | 31-60d: ${fmtM(d3160)} | 61-90d: ${fmtM(d6190)} | +90d: ${fmtM(mas90)}`}
-    >
-      <div style={{ width: `${p(vigente)}%` }}  className="bg-green-500" />
-      <div style={{ width: `${p(d130)}%` }}     className="bg-yellow-400" />
-      <div style={{ width: `${p(d3160)}%` }}    className="bg-orange-500" />
-      <div style={{ width: `${p(d6190)}%` }}    className="bg-red-500" />
-      <div style={{ width: `${p(mas90)}%` }}    className="bg-red-900" />
-    </div>
-  )
-}
-
-// ─── Leyenda de colores ────────────────────────────────────────────────────────
-
-const Leyenda = () => (
-  <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-4">
-    {[['bg-green-500','Por Vencer'],['bg-yellow-400','1–30d'],['bg-orange-500','31–60d'],['bg-red-500','61–90d'],['bg-red-900','+90d']] .map(([c, l]) => (
-      <span key={l} className="flex items-center gap-1.5">
-        <span className={`w-4 h-4 rounded ${c} inline-block`} />{l}
-      </span>
-    ))}
-  </div>
-)
-
 // ─── Facturas expandidas de un cliente ────────────────────────────────────────
 
 const FilaFacturas = ({ nit, cols }: { nit: string; cols: number }) => {
@@ -664,6 +696,39 @@ const SectionHeader = ({ icon, title, count, color }: {
   )
 }
 
+const PaginationControls = ({
+  page,
+  pages,
+  onChange,
+}: {
+  page: number
+  pages: number
+  onChange: (page: number) => void
+}) => {
+  if (pages <= 1) return null
+  return (
+    <div className="flex items-center justify-end gap-2 mt-4">
+      <button
+        onClick={() => onChange(Math.max(1, page - 1))}
+        disabled={page <= 1}
+        className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 disabled:opacity-40"
+      >
+        Anterior
+      </button>
+      <span className="text-sm font-semibold text-gray-600">
+        Página {page} de {pages}
+      </span>
+      <button
+        onClick={() => onChange(Math.min(pages, page + 1))}
+        disabled={page >= pages}
+        className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 disabled:opacity-40"
+      >
+        Siguiente
+      </button>
+    </div>
+  )
+}
+
 // ─── Indicador de días para vencer ───────────────────────────────────────────
 
 const PillDias = ({ dias }: { dias: number }) => {
@@ -686,6 +751,10 @@ export const CarteraInforme = () => {
   const [expCiudades,   setExpCiudades]   = useState<Set<string>>(new Set())
   const [expComerciales,setExpComerciales]= useState<Set<string>>(new Set())
   const [filtroRiesgo,  setFiltroRiesgo]  = useState<string>('todos')
+  const [pageCarteraEdades, setPageCarteraEdades] = useState(1)
+  const [pageProximos, setPageProximos] = useState(1)
+  const [pageCiudades, setPageCiudades] = useState(1)
+  const [pageComerciales, setPageComerciales] = useState(1)
 
   const qc = useQueryClient()
 
@@ -724,6 +793,10 @@ export const CarteraInforme = () => {
     setExpClientes(new Set())
     setExpCiudades(new Set())
     setExpComerciales(new Set())
+    setPageCarteraEdades(1)
+    setPageProximos(1)
+    setPageCiudades(1)
+    setPageComerciales(1)
   }
 
   // Usar datos reales si existen; si no, mostrar maqueta de muestra
@@ -749,6 +822,15 @@ export const CarteraInforme = () => {
   const criticos90   = cartera.reduce((s, c) => s + c.dias_91_180 + c.mas_180_dias, 0)
   const nCriticos    = cartera.filter(c => c.dias_91_180 + c.mas_180_dias > 0).length
   const fechaCorte   = isDemoMode ? DEMO_DATE : (cartera[0]?.fecha_corte ?? null)
+  const carteraFiltrada = cartera.filter(c => filtroRiesgo === 'todos' || nivelRiesgo(c) === filtroRiesgo)
+  const carteraEdadesPages = totalPages(carteraFiltrada.length)
+  const carteraEdadesPageItems = paginate(carteraFiltrada, Math.min(pageCarteraEdades, carteraEdadesPages))
+  const proximosPages = totalPages(proximos.length)
+  const proximosPageItems = paginate(proximos, Math.min(pageProximos, proximosPages))
+  const ciudadesPages = totalPages(ciudades.length)
+  const ciudadesPageItems = paginate(ciudades, Math.min(pageCiudades, ciudadesPages))
+  const comercialesPages = totalPages(comerciales.length)
+  const comercialesPageItems = paginate(comerciales, Math.min(pageComerciales, comercialesPages))
 
   const cargando = false // siempre mostramos contenido (real o muestra)
 
@@ -756,7 +838,7 @@ export const CarteraInforme = () => {
     <div className="min-h-screen bg-[#f4f6fa]">
 
       {/* ── HEADER PEGAJOSO ─────────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-[#1a1a2e] text-white shadow-lg border-b border-white/10">
+      <div className="sticky top-0 z-20 bg-primary-950 text-white shadow-lg border-b border-primary-800">
         <div className="px-6 lg:px-10 py-4 flex flex-wrap items-center gap-4">
 
           {/* Título */}
@@ -764,16 +846,11 @@ export const CarteraInforme = () => {
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight">
               Informe de Cartera — Grupo RP
             </h1>
-            {isDemoMode
-              ? <span className="text-xs font-bold text-yellow-400 opacity-90 mt-0.5 block">
-                  Datos de muestra · Sincronice para ver información real
-                </span>
-              : fechaCorte && (
+            {!isDemoMode && fechaCorte && (
                 <span className="text-xs text-white/60 mt-0.5 block">
                   Corte: {fechaCorte}
                 </span>
-              )
-            }
+              )}
           </div>
 
           {/* Filtro de fechas */}
@@ -793,7 +870,7 @@ export const CarteraInforme = () => {
             />
             <button
               onClick={aplicarFiltro}
-              className="flex items-center gap-1.5 bg-white text-[#1a1a2e] font-bold px-4 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+              className="flex items-center gap-1.5 bg-white text-slate-800 font-bold px-4 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-sm"
             >
               <Search className="h-4 w-4" /> Buscar
             </button>
@@ -893,7 +970,6 @@ export const CarteraInforme = () => {
               ))}
             </div>
 
-            <Leyenda />
             <div className="overflow-x-auto">
               <table className="w-full text-base">
                 <thead className="bg-[#1a1a2e] text-white text-sm">
@@ -909,13 +985,10 @@ export const CarteraInforme = () => {
                     <th className="px-4 py-3 text-right">61–90d</th>
                     <th className="px-4 py-3 text-right">+90d</th>
                     <th className="px-4 py-3 text-center">Estado</th>
-                    <th className="px-4 py-3 text-left min-w-[160px]">Antigüedad</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {cartera
-                    .filter(c => filtroRiesgo === 'todos' || nivelRiesgo(c) === filtroRiesgo)
-                    .map((c, idx) => {
+                  {carteraEdadesPageItems.map((c, idx) => {
                     const nivel  = nivelRiesgo(c)
                     const isOpen = expClientes.has(c.cliente_nit)
                     const mas90  = c.dias_91_180 + c.mas_180_dias
@@ -925,7 +998,7 @@ export const CarteraInforme = () => {
                           onClick={() => setExpClientes(prev => toggleSet(prev, c.cliente_nit))}
                           className={`${rowBgCls(nivel)} hover:bg-blue-50 cursor-pointer border-b border-gray-100 transition-colors`}
                         >
-                          <td className="px-4 py-4 text-gray-400 font-mono text-sm">{idx + 1}</td>
+                           <td className="px-4 py-4 text-gray-400 font-mono text-sm">{(Math.min(pageCarteraEdades, carteraEdadesPages) - 1) * PAGE_SIZE + idx + 1}</td>
                           <td className="px-4 py-4 font-semibold">
                             <div className="flex items-center gap-2">
                               {isOpen
@@ -950,23 +1023,19 @@ export const CarteraInforme = () => {
                               {nivel.toUpperCase()}
                             </span>
                           </td>
-                          <td className="px-4 py-4">
-                            <AgingBar vigente={c.vigente} d130={c.dias_1_30} d3160={c.dias_31_60}
-                              d6190={c.dias_61_90} mas90={mas90} total={c.total_deuda} />
-                          </td>
                         </tr>
                         {isOpen && (isDemoMode
-                          ? <FilaFacturasMock nit={c.cliente_nit} cols={12} />
-                          : <FilaFacturas     nit={c.cliente_nit} cols={12} />
+                          ? <FilaFacturasMock nit={c.cliente_nit} cols={11} />
+                          : <FilaFacturas     nit={c.cliente_nit} cols={11} />
                         )}
                       </Fragment>
                     )
                   })}
                 </tbody>
                 <tfoot className="bg-gray-100 border-t-2 border-gray-300">
-                  {(() => {
-                    const fil = filtroRiesgo === 'todos' ? cartera : cartera.filter(c => nivelRiesgo(c) === filtroRiesgo)
-                    return (
+                   {(() => {
+                     const fil = carteraFiltrada
+                     return (
                       <tr>
                         <td colSpan={4} className="px-4 py-3 font-bold text-gray-700">
                           TOTALES {filtroRiesgo !== 'todos' && `(${fil.length} clientes filtrados)`}
@@ -977,13 +1046,18 @@ export const CarteraInforme = () => {
                         <td className="px-4 py-3 text-right font-bold text-orange-600">{fmtM(fil.reduce((s,c)=>s+c.dias_31_60,0))}</td>
                         <td className="px-4 py-3 text-right font-bold text-red-600">{fmtM(fil.reduce((s,c)=>s+c.dias_61_90,0))}</td>
                         <td className="px-4 py-3 text-right font-bold text-red-900">{fmtM(fil.reduce((s,c)=>s+c.dias_91_180+c.mas_180_dias,0))}</td>
-                        <td colSpan={2} />
+                        <td colSpan={1} />
                       </tr>
                     )
                   })()}
                 </tfoot>
               </table>
             </div>
+            <PaginationControls
+              page={Math.min(pageCarteraEdades, carteraEdadesPages)}
+              pages={carteraEdadesPages}
+              onChange={setPageCarteraEdades}
+            />
           </section>
 
           {/* ══════════════════════════════════════════════════════════════
@@ -1020,9 +1094,9 @@ export const CarteraInforme = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {proximos.map((pv: ProximoVencimiento, i) => (
+                    {proximosPageItems.map((pv: ProximoVencimiento, i) => (
                       <tr key={i} className="border-b border-gray-100 hover:bg-orange-50 transition-colors">
-                        <td className="px-4 py-4 text-gray-400 font-mono text-sm">{i + 1}</td>
+                        <td className="px-4 py-4 text-gray-400 font-mono text-sm">{(Math.min(pageProximos, proximosPages) - 1) * PAGE_SIZE + i + 1}</td>
                         <td className="px-4 py-4 font-semibold">{pv.cliente}</td>
                         <td className="px-4 py-4 text-gray-500 font-mono text-sm">{pv.num_doc}</td>
                         <td className="px-4 py-4 text-gray-700">{pv.fecha_vencimiento}</td>
@@ -1045,6 +1119,11 @@ export const CarteraInforme = () => {
                 </table>
               </div>
             )}
+            <PaginationControls
+              page={Math.min(pageProximos, proximosPages)}
+              pages={proximosPages}
+              onChange={setPageProximos}
+            />
           </section>
 
           {/* ══════════════════════════════════════════════════════════════
@@ -1075,11 +1154,10 @@ export const CarteraInforme = () => {
                       <th className="px-4 py-3 text-right">Vencida</th>
                       <th className="px-4 py-3 text-center">% Vencida</th>
                       <th className="px-4 py-3 text-center">% Total</th>
-                      <th className="px-4 py-3 text-left min-w-[160px]">Distribución</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {ciudades.map((ciu: CiudadAgregada, idx) => {
+                    {ciudadesPageItems.map((ciu: CiudadAgregada, idx) => {
                       const isOpen = expCiudades.has(ciu.ciudad)
                       const pctVenc = ciu.total_deuda > 0
                         ? ((ciu.total_vencida / ciu.total_deuda) * 100).toFixed(1)
@@ -1090,7 +1168,7 @@ export const CarteraInforme = () => {
                             onClick={() => setExpCiudades(prev => toggleSet(prev, ciu.ciudad))}
                             className="bg-white hover:bg-purple-50 cursor-pointer border-b border-gray-100 transition-colors"
                           >
-                            <td className="px-4 py-4 text-gray-400 font-mono text-sm">{idx + 1}</td>
+                             <td className="px-4 py-4 text-gray-400 font-mono text-sm">{(Math.min(pageCiudades, ciudadesPages) - 1) * PAGE_SIZE + idx + 1}</td>
                             <td className="px-4 py-4 font-bold text-lg flex items-center gap-2">
                               {isOpen
                                 ? <ChevronDown className="h-5 w-5 text-purple-600 shrink-0" />
@@ -1112,22 +1190,12 @@ export const CarteraInforme = () => {
                               }`}>{pctVenc}%</span>
                             </td>
                             <td className="px-4 py-4 text-center text-gray-600 font-semibold">{ciu.porcentaje}%</td>
-                            <td className="px-4 py-4">
-                              <AgingBar
-                                vigente={ciu.vigente}
-                                d130={ciu.dias_1_30}
-                                d3160={ciu.dias_31_60}
-                                d6190={ciu.dias_61_90}
-                                mas90={ciu.dias_91_mas}
-                                total={ciu.total_deuda}
-                              />
-                            </td>
                           </tr>
 
                           {/* Detalle de instituciones por ciudad */}
                           {isOpen && (
                             <tr>
-                              <td colSpan={8} className="px-4 py-2">
+                              <td colSpan={7} className="px-4 py-2">
                                 <div className="bg-purple-50 border border-purple-200 rounded-xl mx-6 mb-3 overflow-hidden">
                                   <div className="px-5 py-3 bg-purple-100 font-bold text-purple-800 text-base">
                                     INSTITUCIONES EN {ciu.ciudad.toUpperCase()} — DE MAYOR A MENOR DEUDA
@@ -1178,6 +1246,11 @@ export const CarteraInforme = () => {
                 </table>
               </div>
             )}
+            <PaginationControls
+              page={Math.min(pageCiudades, ciudadesPages)}
+              pages={ciudadesPages}
+              onChange={setPageCiudades}
+            />
           </section>
 
           {/* ══════════════════════════════════════════════════════════════
@@ -1208,11 +1281,10 @@ export const CarteraInforme = () => {
                       <th className="px-4 py-3 text-right">Vencida</th>
                       <th className="px-4 py-3 text-center">% Vencida</th>
                       <th className="px-4 py-3 text-center">% Total</th>
-                      <th className="px-4 py-3 text-left min-w-[160px]">Distribución</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {comerciales.map((com: VendedorAgregado, idx) => {
+                    {comercialesPageItems.map((com: VendedorAgregado, idx) => {
                       const isOpen = expComerciales.has(com.vendedor)
                       const pctVenc = com.total_deuda > 0
                         ? ((com.total_vencida / com.total_deuda) * 100).toFixed(1)
@@ -1223,7 +1295,7 @@ export const CarteraInforme = () => {
                             onClick={() => setExpComerciales(prev => toggleSet(prev, com.vendedor))}
                             className="bg-white hover:bg-teal-50 cursor-pointer border-b border-gray-100 transition-colors"
                           >
-                            <td className="px-4 py-4 text-gray-400 font-mono text-sm">{idx + 1}</td>
+                             <td className="px-4 py-4 text-gray-400 font-mono text-sm">{(Math.min(pageComerciales, comercialesPages) - 1) * PAGE_SIZE + idx + 1}</td>
                             <td className="px-4 py-4 font-bold text-lg flex items-center gap-2">
                               {isOpen
                                 ? <ChevronDown className="h-5 w-5 text-teal-600 shrink-0" />
@@ -1245,22 +1317,12 @@ export const CarteraInforme = () => {
                               }`}>{pctVenc}%</span>
                             </td>
                             <td className="px-4 py-4 text-center text-gray-600 font-semibold">{com.porcentaje}%</td>
-                            <td className="px-4 py-4">
-                              <AgingBar
-                                vigente={com.vigente}
-                                d130={com.dias_1_30}
-                                d3160={com.dias_31_60}
-                                d6190={com.dias_61_90}
-                                mas90={com.dias_91_mas}
-                                total={com.total_deuda}
-                              />
-                            </td>
                           </tr>
 
                           {/* Detalle de instituciones por comercial */}
                           {isOpen && (
                             <tr>
-                              <td colSpan={8} className="px-4 py-2">
+                              <td colSpan={7} className="px-4 py-2">
                                 <div className="bg-teal-50 border border-teal-200 rounded-xl mx-6 mb-3 overflow-hidden">
                                   <div className="px-5 py-3 bg-teal-100 font-bold text-teal-800 text-base">
                                     INSTITUCIONES DE {com.vendedor.toUpperCase()} — DE MAYOR A MENOR DEUDA
@@ -1313,6 +1375,11 @@ export const CarteraInforme = () => {
                 </table>
               </div>
             )}
+            <PaginationControls
+              page={Math.min(pageComerciales, comercialesPages)}
+              pages={comercialesPages}
+              onChange={setPageComerciales}
+            />
           </section>
 
           {/* ══════════════════════════════════════════════════════════════

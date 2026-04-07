@@ -21,14 +21,14 @@ const colorMap = {
 export const StatCard = ({ title, value, subtitle, icon: Icon, color = 'green', trend }: StatCardProps) => {
   const c = colorMap[color]
   return (
-    <div className="card p-5 hover:shadow-md transition-shadow">
+    <div className="card p-5 shadow-sm hover:shadow transition-shadow">
       <div className="flex items-start justify-between">
         <div className="flex-1">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{title}</p>
-          <p className="text-2xl font-bold text-gray-900 mb-1">{value}</p>
-          {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+          <p className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-2">{title}</p>
+          <p className="text-3xl font-semibold text-gray-900 mb-1">{value}</p>
+          {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
           {trend && (
-            <div className={clsx('flex items-center gap-1 mt-2 text-xs font-medium', trend.value >= 0 ? 'text-green-600' : 'text-red-600')}>
+            <div className={clsx('flex items-center gap-1 mt-2 text-sm font-medium', trend.value >= 0 ? 'text-green-600' : 'text-red-600')}>
               <span>{trend.value >= 0 ? '↑' : '↓'} {Math.abs(trend.value)}%</span>
               <span className="text-gray-400">{trend.label}</span>
             </div>

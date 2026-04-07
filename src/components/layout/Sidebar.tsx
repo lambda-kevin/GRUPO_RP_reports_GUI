@@ -6,7 +6,6 @@ import {
   ClipboardList,
   MessageSquare,
   LogOut,
-  Activity,
   ChevronRight,
 } from 'lucide-react'
 import { clsx } from 'clsx'
@@ -22,6 +21,7 @@ const navItems: Array<{ to: string; icon: typeof Wallet; label: string; highligh
 ]
 
 export const Sidebar = () => {
+  const logoSources = ['/dist/assets/grupo-rp-noback.png', '/assets/grupo-rp-noback.png']
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
@@ -39,9 +39,12 @@ export const Sidebar = () => {
       {/* Logo */}
       <div className="p-5 border-b border-primary-800">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 bg-primary-500 rounded-lg flex items-center justify-center">
-            <Activity className="h-5 w-5 text-white" />
-          </div>
+          <img
+            src={logoSources[0]}
+            alt="Grupo RP"
+            className="w-9 h-9 rounded-lg object-contain bg-primary-500/20 p-1"
+            onError={(e) => { e.currentTarget.src = logoSources[1] }}
+          />
           <div>
             <div className="font-bold text-sm leading-tight">Grupo RP</div>
             <div className="text-primary-400 text-xs">Sistema Operativo</div>

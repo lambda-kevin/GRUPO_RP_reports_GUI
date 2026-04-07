@@ -15,18 +15,39 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { Conversacion, Mensaje } from '../types'
 
-const PROMPTS_SUGERIDOS = [
-  'Resumen de bancos del ultimo corte y riesgos principales.',
-  'Que bancos tienen mas pagos sin identificar?',
-  'Cuales clientes tienen deuda critica (mas de 180 dias)?',
-  'Cuanto de la cartera esta en riesgo?',
-  'Dame un resumen ejecutivo de cartera y bancos.',
+const PAGE_SIZE = 6
+const totalPages = (items: number) => Math.max(1, Math.ceil(items / PAGE_SIZE))
+const paginate = <T,>(items: T[], page: number) =>
+  items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+
+const INFORMES_IA = [
+  {
+    titulo: 'Resumen Ejecutivo CEO',
+    descripcion: 'Panorama de cartera y bancos con alertas y decisiones prioritarias.',
+    prompt: 'Genera un resumen ejecutivo CEO de cartera y bancos con alertas, prioridades y acciones de esta semana.',
+  },
+  {
+    titulo: 'Análisis de Flujo de Caja',
+    descripcion: 'Tendencia de recaudo, vencimientos y riesgo de caja.',
+    prompt: 'Analiza el flujo de caja con tendencia de recaudo, próximos vencimientos y riesgo en 30 días.',
+  },
+  {
+    titulo: 'Cartera de Mayor Impacto',
+    descripcion: 'Clientes que más pesan en la deuda y su riesgo crítico.',
+    prompt: 'Lista los clientes de mayor deuda, su porcentaje de participación y el riesgo +90 días.',
+  },
+  {
+    titulo: 'Prioridades de Cobro',
+    descripcion: 'Plan de acción táctico por comercial y ciudad.',
+    prompt: 'Genera prioridades de cobro por comercial y ciudad con acciones concretas para los próximos 7 días.',
+  },
 ]
 
 export const AgenteChat = () => {
   const queryClient = useQueryClient()
   const [convActiva, setConvActiva] = useState<string | null>(null)
   const [input, setInput] = useState('')
+  const [pageConvs, setPageConvs] = useState(1)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   const { data: conversaciones, isLoading: loadingConvs } = useQuery({
@@ -86,8 +107,12 @@ export const AgenteChat = () => {
     }
   }
 
+  const conversacionesList = conversaciones ?? []
+  const convPages = totalPages(conversacionesList.length)
+  const convPageItems = paginate(conversacionesList, Math.min(pageConvs, convPages))
+
   return (
-    <div className="flex h-[calc(100vh-0px)] flex-col">
+    <div className="flex h-[calc(100vh-0px)] flex-col bg-[#f4f6fa]">
       <Header title="Asistente IA" subtitle="Consulta datos del negocio en lenguaje natural" />
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar conversaciones */}
@@ -107,7 +132,7 @@ export const AgenteChat = () => {
             {loadingConvs && (
               <div className="flex justify-center py-4"><Spinner className="h-4 w-4 text-gray-400" /></div>
             )}
-            {conversaciones?.map((c: Conversacion) => (
+            {convPageItems.map((c: Conversacion) => (
               <div
                 key={c.id}
                 className={clsx(
@@ -136,43 +161,92 @@ export const AgenteChat = () => {
             {!loadingConvs && !conversaciones?.length && (
               <p className="text-xs text-gray-400 text-center py-4">Sin conversaciones</p>
             )}
+            {convPages > 1 && (
+              <div className="px-2 pt-2 flex items-center justify-between text-xs text-gray-600">
+                <button
+                  onClick={() => setPageConvs(Math.max(1, pageConvs - 1))}
+                  disabled={pageConvs <= 1}
+                  className="px-2 py-1 border border-gray-300 rounded disabled:opacity-40"
+                >
+                  Anterior
+                </button>
+                <span>{Math.min(pageConvs, convPages)} / {convPages}</span>
+                <button
+                  onClick={() => setPageConvs(Math.min(convPages, pageConvs + 1))}
+                  disabled={pageConvs >= convPages}
+                  className="px-2 py-1 border border-gray-300 rounded disabled:opacity-40"
+                >
+                  Siguiente
+                </button>
+              </div>
+            )}
           </div>
         </aside>
 
         {/* Chat area */}
-        <div className="flex-1 flex flex-col bg-gray-50">
+        <div className="flex-1 flex flex-col bg-[#f4f6fa]">
           {!convActiva ? (
-            <div className="flex-1 flex flex-col items-center justify-center p-8">
-              <div className="w-16 h-16 bg-primary-100 rounded-2xl flex items-center justify-center mb-4">
-                <Sparkles className="h-8 w-8 text-primary-600" />
+            <div className="flex-1 p-6 lg:p-8 overflow-y-auto">
+              <div className="max-w-6xl mx-auto">
+                <div className="mb-6">
+                  <h3 className="text-3xl font-extrabold text-gray-900">Informes Financieros con IA</h3>
+                  <p className="text-base text-gray-600 mt-1">
+                    Genera análisis ejecutivos de cartera y bancos con recomendaciones claras.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+                  {INFORMES_IA.map((item) => (
+                    <button
+                      key={item.titulo}
+                      onClick={() => {
+                        crearMutation.mutate(undefined, {
+                          onSuccess: (c) => {
+                            setConvActiva(c.id)
+                            handleEnviar(item.prompt, c.id)
+                          },
+                        })
+                      }}
+                      className="text-left bg-white border border-gray-200 rounded-xl p-4 hover:border-primary-300 hover:shadow-sm transition-all"
+                    >
+                      <div className="w-9 h-9 bg-primary-100 rounded-lg flex items-center justify-center mb-3">
+                        <Sparkles className="h-5 w-5 text-primary-700" />
+                      </div>
+                      <p className="text-base font-bold text-gray-900">{item.titulo}</p>
+                      <p className="text-sm text-gray-600 mt-1 leading-snug">{item.descripcion}</p>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="bg-white border border-gray-200 rounded-xl p-4">
+                  <p className="text-sm font-bold text-gray-800 mb-2">Consulta libre</p>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Escribe una pregunta puntual y el asistente generará un informe personalizado.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder="Ej. ¿Cuál cliente concentra mayor deuda vencida y qué acción recomiendas?"
+                      className="input flex-1"
+                    />
+                    <button
+                      onClick={() => {
+                        crearMutation.mutate(undefined, {
+                          onSuccess: (c) => {
+                            setConvActiva(c.id)
+                            handleEnviar(input, c.id)
+                          },
+                        })
+                      }}
+                      disabled={!input.trim() || crearMutation.isPending}
+                      className="btn-primary px-5"
+                    >
+                      {crearMutation.isPending ? 'Generando...' : 'Generar'}
+                    </button>
+                  </div>
+                </div>
               </div>
-              <h3 className="text-base font-semibold text-gray-900 mb-2">Asistente Ejecutivo RP</h3>
-              <p className="text-sm text-gray-500 text-center max-w-sm mb-8">
-                Consulta el estado de bancos, cartera, cirugias y el sistema en lenguaje natural.
-              </p>
-              <div className="grid grid-cols-1 gap-2 w-full max-w-md">
-                {PROMPTS_SUGERIDOS.map((p, i) => (
-                  <button
-                    key={i}
-                    onClick={() => {
-                      crearMutation.mutate(undefined, {
-                        onSuccess: (c) => {
-                          setConvActiva(c.id)
-                          // Pasamos c.id directamente para evitar closure sobre estado stale
-                          handleEnviar(p, c.id)
-                        },
-                      })
-                    }}
-                    className="text-left p-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-700 hover:border-primary-400 hover:bg-primary-50 transition-colors"
-                  >
-                    {p}
-                  </button>
-                ))}
-              </div>
-              <button onClick={() => crearMutation.mutate()} className="btn-primary mt-6 flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                Nueva conversacion
-              </button>
             </div>
           ) : (
             <>

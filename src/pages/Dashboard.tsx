@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
 import { TrendingUp, AlertTriangle, DollarSign, Users, CheckCircle, XCircle, Clock } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { getDashboardResumen } from '../api/dashboard'
@@ -29,7 +28,6 @@ const fmt = (n: number) => {
 }
 
 export const Dashboard = () => {
-  const navigate = useNavigate()
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard-resumen'],
     queryFn: getDashboardResumen,
@@ -74,16 +72,16 @@ export const Dashboard = () => {
     : []
 
   return (
-    <div>
+    <div className="h-full overflow-y-auto bg-gray-100/60">
       <Header
         title="Panel Ejecutivo"
         subtitle={bancos ? `Corte: ${format(new Date(bancos.fecha_corte), 'PPP', { locale: es })}` : 'Sin corte reciente'}
       />
 
-      <div className="p-6 space-y-6">
+      <div className="p-7 space-y-7">
         {/* Alertas */}
         {alertas?.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {alertas.map((a, i) => (
               <AlertCard key={i} alert={a} />
             ))}
@@ -94,7 +92,7 @@ export const Dashboard = () => {
         {bancos && (
           <>
             <div>
-              <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">Bancos - Ultimo corte</h2>
+              <h2 className="text-base font-semibold text-gray-600 uppercase tracking-wider mb-4">Bancos - Ultimo corte</h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard title="Ingresos totales" value={bancos.ingresos_fmt} icon={DollarSign} color="green" />
                 <StatCard title="Identificados" value={bancos.identificados_fmt} icon={CheckCircle} color="blue" />
@@ -110,8 +108,8 @@ export const Dashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Distribucion de ingresos</h3>
+              <Card className="shadow-sm">
+                <h3 className="text-base font-semibold text-gray-800 mb-4">Distribucion de ingresos</h3>
                 <ResponsiveContainer width="100%" height={200}>
                   <PieChart>
                     <Pie data={bancosChartData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
@@ -129,14 +127,14 @@ export const Dashboard = () => {
               </Card>
 
               {/* Pipelines */}
-              <Card>
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Estado de pipelines</h3>
+              <Card className="shadow-sm">
+                <h3 className="text-base font-semibold text-gray-800 mb-4">Estado de pipelines</h3>
                 <div className="space-y-3">
                   {pipelines.map((p) => (
-                    <div key={p.nombre} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+                    <div key={p.nombre} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
                       <Badge nivel={p.nivel}>{p.estado}</Badge>
-                      <span className="flex-1 text-sm font-medium text-gray-700">{p.nombre}</span>
-                      <span className="text-xs text-gray-400 flex items-center gap-1">
+                      <span className="flex-1 text-base font-medium text-gray-700">{p.nombre}</span>
+                      <span className="text-sm text-gray-400 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
                         {p.ultima_ejecucion ? format(new Date(p.ultima_ejecucion), 'HH:mm') : 'N/A'}
                       </span>
@@ -154,7 +152,7 @@ export const Dashboard = () => {
         {/* Cartera */}
         {cartera && (
           <div>
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+            <h2 className="text-base font-semibold text-gray-600 uppercase tracking-wider mb-4">
               Cartera — {format(new Date(cartera.fecha_corte), 'PPP', { locale: es })}
             </h2>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
@@ -164,8 +162,8 @@ export const Dashboard = () => {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Distribucion de cartera</h3>
+              <Card className="shadow-sm">
+                <h3 className="text-base font-semibold text-gray-800 mb-4">Distribucion de cartera</h3>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={carteraChartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -181,8 +179,8 @@ export const Dashboard = () => {
                 </ResponsiveContainer>
               </Card>
 
-              <Card>
-                <h3 className="text-sm font-semibold text-gray-700 mb-4">Top clientes criticos</h3>
+              <Card className="shadow-sm">
+                <h3 className="text-base font-semibold text-gray-800 mb-4">Top clientes criticos</h3>
                 <div className="space-y-2">
                   {cartera.top_criticos.map((c, i) => (
                     <div key={i} className="flex items-center gap-3 py-2">

@@ -20,11 +20,11 @@ export const AlertCard = ({ alert }: { alert: Alert }) => {
   const Icon = iconMap[alert.nivel]
   const s = styleMap[alert.nivel]
   return (
-    <div className={clsx('flex items-start gap-3 p-3 rounded-lg border', s.bg)}>
-      <Icon className={clsx('h-4 w-4 mt-0.5 flex-shrink-0', s.icon)} />
+    <div className={clsx('flex items-start gap-3 p-4 rounded-xl border shadow-sm', s.bg)}>
+      <Icon className={clsx('h-5 w-5 mt-0.5 flex-shrink-0', s.icon)} />
       <div>
-        <p className={clsx('text-xs font-semibold', s.title)}>{alert.titulo}</p>
-        <p className={clsx('text-xs mt-0.5', s.desc)}>{alert.descripcion}</p>
+        <p className={clsx('text-sm font-semibold', s.title)}>{alert.titulo}</p>
+        <p className={clsx('text-sm mt-1', s.desc)}>{alert.descripcion}</p>
       </div>
     </div>
   )
