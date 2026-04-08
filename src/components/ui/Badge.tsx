@@ -10,7 +10,7 @@ const variants = {
   ok: 'badge-ok',
   warn: 'badge-warn',
   error: 'badge-error',
-  info: 'bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full',
+  info: 'bg-blue-100 text-blue-800 text-sm font-medium px-2.5 py-1 rounded-full',
 }
 
 export const Badge = ({ nivel, children, className }: BadgeProps) => (

@@ -21,6 +21,20 @@ export default {
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
       },
+      // Raise the minimum font scale so text-xs = 14px, text-sm = 15px
+      // This cascades to every component without changing individual files
+      fontSize: {
+        xs:   ['0.875rem', { lineHeight: '1.35rem' }],   // 14px  (was 12px)
+        sm:   ['0.9375rem', { lineHeight: '1.5rem' }],   // 15px  (was 14px)
+        base: ['1rem',     { lineHeight: '1.6rem' }],    // 16px  (unchanged)
+        lg:   ['1.125rem', { lineHeight: '1.75rem' }],   // 18px
+        xl:   ['1.25rem',  { lineHeight: '1.85rem' }],   // 20px
+        '2xl':['1.5rem',   { lineHeight: '2rem'    }],   // 24px
+        '3xl':['1.875rem', { lineHeight: '2.25rem' }],   // 30px
+      },
+      // Ensure minimum 44px touch targets are easy to compose
+      minHeight: { touch: '2.75rem' },
+      minWidth:  { touch: '2.75rem' },
     },
   },
   plugins: [],

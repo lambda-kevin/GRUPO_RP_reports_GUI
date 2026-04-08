@@ -3,8 +3,8 @@ import type { DashboardResumen, SnapBancos, SnapCartera, LogEnvio, Factura, Ciud
 
 export type FiltroFecha = { fecha?: string; fecha_desde?: string; fecha_hasta?: string }
 
-export const getDashboardResumen = async (): Promise<DashboardResumen> => {
-  const { data } = await apiClient.get('/dashboard/resumen/')
+export const getDashboardResumen = async (fecha?: string): Promise<DashboardResumen> => {
+  const { data } = await apiClient.get('/dashboard/resumen/', { params: fecha ? { fecha } : {} })
   return data
 }
 
@@ -29,12 +29,12 @@ export const getCartera = async (filtro?: FiltroFecha): Promise<SnapCartera[]> =
   return data.results ?? data
 }
 
-export const getFacturas = async (cliente_nit: string): Promise<{
+export const getFacturas = async (cliente_nit: string, filtro?: FiltroFecha): Promise<{
   cliente_nit: string
   facturas: Factura[]
   total: number
 }> => {
-  const { data } = await apiClient.get('/cartera/facturas/', { params: { cliente_nit } })
+  const { data } = await apiClient.get('/cartera/facturas/', { params: { cliente_nit, ...filtro } })
   return data
 }
 

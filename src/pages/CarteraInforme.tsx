@@ -16,31 +16,15 @@ import {
   type FiltroFecha,
 } from '../api/dashboard'
 import { Spinner } from '../components/ui/Spinner'
+import { fmtCOP, fmtCOPShort, fmtPct } from '../utils/fmt'
 import type {
   SnapCartera, Factura, ProximoVencimiento,
   CiudadAgregada, VendedorAgregado,
 } from '../types'
 
-// ─── Formateo ──────────────────────────────────────────────────────────────────
-
-const fmt = (n: number) =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency', currency: 'COP', maximumFractionDigits: 0,
-  }).format(n)
-
-const fmtM = (n: number) => {
-  if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(1)}B`
-  if (n >= 1_000_000)     return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000)         return `$${(n / 1_000).toFixed(0)}K`
-  return `$${n.toFixed(0)}`
-}
-
-const fmtParetoM = (n: number) => {
-  if (n >= 1_000_000_000) return `$${Math.round(n / 1_000_000_000)}B`
-  if (n >= 1_000_000) return `$${Math.round(n / 1_000_000)}M`
-  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`
-  return `$${Math.round(n)}`
-}
+// Aliases locales para uso conciso en este módulo
+const fmt   = fmtCOP       // formato completo: $1.234.567
+const fmtM  = fmtCOPShort  // abreviado: $1,2M / $234K
 
 const PAGE_SIZE = 6
 const totalPages = (items: number) => Math.max(1, Math.ceil(items / PAGE_SIZE))
@@ -48,10 +32,6 @@ const paginate = <T,>(items: T[], page: number) =>
   items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
 const hoy = () => new Date().toISOString().slice(0, 10)
-const primerDiaMes = () => {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
-}
 
 // ─── Pareto ───────────────────────────────────────────────────────────────────
 
@@ -127,7 +107,7 @@ const ParetoTooltip = ({ active, payload, label }: any) => {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[200px]">
       <p className="font-bold text-gray-800 mb-1">{label}</p>
-      <p className="text-slate-700">Deuda: <strong>{fmtParetoM(d.deuda)}</strong></p>
+      <p className="text-slate-700">Deuda: <strong>{fmtCOPShort(d.deuda)}</strong></p>
       <p className="text-blue-600">% del total: <strong>{Math.round(d.pct)}%</strong></p>
       <p className="text-purple-700">Acumulado: <strong>{Math.round(d.acumulado)}%</strong></p>
     </div>
@@ -175,7 +155,7 @@ const SeccionPareto = ({ cartera, totalCartera }: {
           {/* Eje izquierdo: montos */}
           <YAxis
             yAxisId="left"
-            tickFormatter={v => fmtParetoM(v)}
+            tickFormatter={v => fmtCOPShort(v)}
             tick={{ fontSize: 16, fill: '#111827', fontWeight: 700 }}
             width={88}
           />
@@ -279,7 +259,7 @@ const SeccionPareto = ({ cartera, totalCartera }: {
                     <td className="px-4 py-3 text-gray-700">{c.vendedor || '—'}</td>
                     <td className="px-4 py-3 text-right font-extrabold text-[#0f3460]">{fmtM(c.total_deuda)}</td>
                     <td className="px-4 py-3 text-right font-bold text-red-800">{fmtM(deudaCritica)}</td>
-                    <td className="px-4 py-3 text-center font-semibold text-gray-700">{participacion.toFixed(0)}%</td>
+                    <td className="px-4 py-3 text-center font-semibold text-gray-700">{fmtPct(participacion, 0)}</td>
                   </tr>
                 )
               })}
@@ -573,10 +553,10 @@ const rowBgCls = (nivel: string) => ({
 
 // ─── Facturas expandidas de un cliente ────────────────────────────────────────
 
-const FilaFacturas = ({ nit, cols }: { nit: string; cols: number }) => {
+const FilaFacturas = ({ nit, cols, filtro }: { nit: string; cols: number; filtro?: FiltroFecha }) => {
   const { data, isLoading, error } = useQuery({
-    queryKey: ['facturas', nit],
-    queryFn: () => getFacturas(nit),
+    queryKey: ['facturas', nit, filtro],
+    queryFn: () => getFacturas(nit, filtro),
     staleTime: 5 * 60 * 1000,
   })
   return (
@@ -743,7 +723,6 @@ const PillDias = ({ dias }: { dias: number }) => {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export const CarteraInforme = () => {
-  const [desdeInput, setDesdeInput] = useState(primerDiaMes())
   const [hastaInput, setHastaInput] = useState(hoy())
   const [filtro, setFiltro] = useState<FiltroFecha>({})
 
@@ -769,7 +748,6 @@ export const CarteraInforme = () => {
 
   const aplicarFiltro = () => {
     const f: FiltroFecha = {}
-    if (desdeInput) f.fecha_desde = desdeInput
     if (hastaInput) f.fecha_hasta = hastaInput
     setFiltro(f)
     setExpClientes(new Set())
@@ -834,16 +812,10 @@ export const CarteraInforme = () => {
               )}
           </div>
 
-          {/* Filtro de fechas */}
+          {/* Filtro de fecha de corte */}
           <div className="flex flex-wrap items-center gap-2 bg-white/8 border border-white/15 px-4 py-2 rounded-xl ml-auto">
             <Calendar className="h-4 w-4 opacity-60 shrink-0" />
-            <label className="text-sm opacity-80">Desde</label>
-            <input
-              type="date" value={desdeInput}
-              onChange={e => setDesdeInput(e.target.value)}
-              className="bg-white/15 text-white text-sm px-2.5 py-1.5 rounded-lg border border-white/25 focus:outline-none focus:ring-1 focus:ring-white/40 w-36"
-            />
-            <label className="text-sm opacity-80">Hasta</label>
+            <label className="text-sm opacity-80">Fecha de corte</label>
             <input
               type="date" value={hastaInput}
               onChange={e => setHastaInput(e.target.value)}
@@ -889,7 +861,7 @@ export const CarteraInforme = () => {
           icon={<DollarSign className="h-20 w-20" />} />
         <KPICard label="Cartera Vencida"
           value={fmtM(totalVencida)}
-          sub={`${totalCartera > 0 ? (totalVencida/totalCartera*100).toFixed(1) : 0}% del total`}
+          sub={`${totalCartera > 0 ? fmtPct((totalVencida/totalCartera)*100) : '0%'} del total`}
           gradient="from-red-700 to-red-900"
           icon={<AlertTriangle className="h-20 w-20" />} />
         <KPICard label="Mora +90 Días"
@@ -1000,7 +972,7 @@ export const CarteraInforme = () => {
                             </span>
                           </td>
                         </tr>
-                        {isOpen && <FilaFacturas nit={c.cliente_nit} cols={11} />}
+                        {isOpen && <FilaFacturas nit={c.cliente_nit} cols={11} filtro={filtro} />}
                       </Fragment>
                     )
                   })}
@@ -1133,8 +1105,8 @@ export const CarteraInforme = () => {
                     {ciudadesPageItems.map((ciu: CiudadAgregada, idx) => {
                       const isOpen = expCiudades.has(ciu.ciudad)
                       const pctVenc = ciu.total_deuda > 0
-                        ? ((ciu.total_vencida / ciu.total_deuda) * 100).toFixed(1)
-                        : '0'
+                        ? fmtPct((ciu.total_vencida / ciu.total_deuda) * 100)
+                        : '0%'
                       return (
                         <Fragment key={ciu.ciudad}>
                           <tr
@@ -1160,7 +1132,7 @@ export const CarteraInforme = () => {
                                 parseFloat(pctVenc) > 60 ? 'bg-red-100 text-red-800' :
                                 parseFloat(pctVenc) > 30 ? 'bg-orange-100 text-orange-800' :
                                 'bg-green-100 text-green-800'
-                              }`}>{pctVenc}%</span>
+                              }`}>{pctVenc}</span>
                             </td>
                             <td className="px-4 py-4 text-center text-gray-600 font-semibold">{ciu.porcentaje}%</td>
                           </tr>
@@ -1260,8 +1232,8 @@ export const CarteraInforme = () => {
                     {comercialesPageItems.map((com: VendedorAgregado, idx) => {
                       const isOpen = expComerciales.has(com.vendedor)
                       const pctVenc = com.total_deuda > 0
-                        ? ((com.total_vencida / com.total_deuda) * 100).toFixed(1)
-                        : '0'
+                        ? fmtPct((com.total_vencida / com.total_deuda) * 100)
+                        : '0%'
                       return (
                         <Fragment key={com.vendedor}>
                           <tr
@@ -1287,7 +1259,7 @@ export const CarteraInforme = () => {
                                 parseFloat(pctVenc) > 60 ? 'bg-red-100 text-red-800' :
                                 parseFloat(pctVenc) > 30 ? 'bg-orange-100 text-orange-800' :
                                 'bg-green-100 text-green-800'
-                              }`}>{pctVenc}%</span>
+                              }`}>{pctVenc}</span>
                             </td>
                             <td className="px-4 py-4 text-center text-gray-600 font-semibold">{com.porcentaje}%</td>
                           </tr>

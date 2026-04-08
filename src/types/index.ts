@@ -149,21 +149,39 @@ export interface BancosResumen {
 
 export interface CarteraResumen {
   fecha_corte: string
+  // Totales
+  total_cartera: number
+  total_cartera_fmt: string
+  total_vencida: number
+  total_vencida_fmt: string
+  mora_90: number
+  mora_90_fmt: string
+  pct_vencida: number
+  pct_mora_90: number
+  // Conteos
+  clientes_count: number
+  clientes_criticos_count: number
+  // Legado (compatibilidad)
   frescas: number
   atencion: number
   riesgo: number
   frescas_fmt: string
   atencion_fmt: string
   riesgo_fmt: string
-  top_criticos: { nombre: string; deuda: number }[]
+  // Distribución por tramo
+  distribucion: { tramo: string; monto: number }[]
+  // Top críticos enriquecidos
+  top_criticos: { nombre: string; ciudad: string; vendedor: string; deuda: number; mora_90: number; mora_90_fmt: string }[]
 }
 
 // bancos/cartera pueden ser {} si no hay datos aún
+
 export interface DashboardResumen {
   bancos: BancosResumen | Record<string, never>
   cartera: CarteraResumen | Record<string, never>
   pipelines: Pipeline[]
   alertas: Alert[]
+  fecha_consulta: string
 }
 
 // tokens_usados y latencia_ms son nullable en el modelo

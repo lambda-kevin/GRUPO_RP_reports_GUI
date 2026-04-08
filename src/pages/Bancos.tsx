@@ -9,8 +9,9 @@ import { EmptyState } from '../components/ui/EmptyState'
 import { Badge } from '../components/ui/Badge'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import { fmtCOP } from '../utils/fmt'
 
-const fmt = (n: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(n)
+const fmt = fmtCOP
 
 export const Bancos = () => {
   const navigate = useNavigate()

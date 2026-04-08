@@ -6,29 +6,17 @@ import {
 } from 'recharts'
 import type { AxiosError } from 'axios'
 import { getDashboardBancos } from '../api/dashboard'
-import { Spinner } from '../components/ui/Spinner'
+import { PageLoader } from '../components/ui/Spinner'
 import { Card } from '../components/ui/Card'
+import { fmtCOP, fmtCOPShort, fmtPct } from '../utils/fmt'
 
 const PAGE_SIZE = 6
 const totalPages = (items: number) => Math.max(1, Math.ceil(items / PAGE_SIZE))
 const paginate = <T,>(items: T[], page: number) =>
   items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    maximumFractionDigits: 0,
-  }).format(n)
-
-const fmtShort = (n: number) => {
-  if (n >= 1_000_000) {
-    return `$${(n / 1_000_000).toFixed(1)}M`
-  } else if (n >= 1_000) {
-    return `$${(n / 1_000).toFixed(0)}K`
-  }
-  return fmt(n)
-}
+const fmt      = fmtCOP
+const fmtShort = fmtCOPShort
 
 const pct = (numerador: number, denominador: number) =>
   denominador > 0 ? (numerador / denominador) * 100 : 0
@@ -96,13 +84,7 @@ export const DashboardBancos = () => {
     }
   }, [data, año])
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8 text-primary-600" />
-      </div>
-    )
-  }
+  if (isLoading) return <PageLoader label="Cargando datos de bancos..." />
 
   if (isError) {
     const errorData = (error as AxiosError<{ message?: string; error?: string }>)?.response?.data
@@ -241,7 +223,7 @@ export const DashboardBancos = () => {
           <Card className="border-l-4 border-green-600 shadow-sm">
             <div className="p-4">
               <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">Ventas Netas</div>
-              <div className="text-3xl font-semibold text-gray-900">{kpis.ventas_netas_fmt}</div>
+              <div className="text-3xl font-semibold text-gray-900">{fmtCOPShort(kpis.ventas_netas)}</div>
               <div className="text-sm text-gray-500 mt-1">Total facturado</div>
             </div>
           </Card>
@@ -249,7 +231,7 @@ export const DashboardBancos = () => {
           <Card className="border-l-4 border-green-400 shadow-sm">
             <div className="p-4">
               <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">Recaudo</div>
-              <div className="text-3xl font-semibold text-gray-900">{kpis.recaudo_fmt}</div>
+              <div className="text-3xl font-semibold text-gray-900">{fmtCOPShort(kpis.recaudo)}</div>
               <div className="text-sm text-gray-500 mt-1">Total recaudado</div>
             </div>
           </Card>
@@ -258,7 +240,7 @@ export const DashboardBancos = () => {
             <div className="p-4">
               <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">Porcentaje de Recaudo</div>
               <div className="text-3xl font-semibold text-gray-900">
-                {kpis.porcentaje_recaudo.toFixed(2)}%
+                {fmtPct(kpis.porcentaje_recaudo, 2)}
               </div>
               <div className="text-sm text-gray-500 mt-1">Cumplimiento frente a ventas</div>
             </div>
@@ -266,19 +248,19 @@ export const DashboardBancos = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card className="shadow-sm">
+          <Card className="border-l-4 border-red-400 shadow-sm">
             <div className="p-4">
-              <p className="text-xs font-medium text-gray-500 mb-1">Brecha por gestionar</p>
-              <p className="text-lg font-semibold text-gray-900">{fmt(brechaGlobal)}</p>
+              <p className="text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Brecha por gestionar</p>
+              <p className="text-2xl font-semibold text-red-600">{fmt(brechaGlobal)}</p>
               <p className="text-xs text-gray-500 mt-1">
                 Monto pendiente para convertir la facturación en caja.
               </p>
             </div>
           </Card>
-          <Card className="shadow-sm">
+          <Card className="border-l-4 border-green-500 shadow-sm">
             <div className="p-4">
-              <p className="text-xs font-medium text-gray-500 mb-1">Ciudad con mayor recaudo</p>
-              <p className="text-lg font-semibold text-gray-900">
+              <p className="text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Ciudad con mayor recaudo</p>
+              <p className="text-2xl font-semibold text-gray-900">
                 {ciudadMayorRecaudo?.ciudad ?? 'Sin datos'}
               </p>
               <p className="text-xs text-gray-500 mt-1">
@@ -338,10 +320,10 @@ export const DashboardBancos = () => {
           <Card className="shadow-sm">
             <div className="p-4">
               <h2 className="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200">
-                Ventas por Ciudad
+                VENTAS POR CIUDAD
               </h2>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data.ventas_por_ciudad} layout="vertical">
+                <BarChart data={ciudadesOrdenadas} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis
                     type="number"
@@ -349,12 +331,12 @@ export const DashboardBancos = () => {
                     style={{ fontSize: '11px' }}
                     tickFormatter={(value) => fmtShort(value)}
                   />
-                  <YAxis 
-                    dataKey="ciudad" 
-                    type="category" 
-                    stroke="#6b7280" 
-                    style={{ fontSize: '11px' }} 
-                    width={120} 
+                  <YAxis
+                    dataKey="ciudad"
+                    type="category"
+                    stroke="#6b7280"
+                    style={{ fontSize: '11px' }}
+                    width={120}
                   />
                   <Tooltip
                     contentStyle={{
@@ -365,7 +347,7 @@ export const DashboardBancos = () => {
                     }}
                     formatter={(value: number) => fmt(value)}
                   />
-                  <Bar dataKey="ventas" name="Ventas" fill="#56b781" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="ventas" name="Ventas" fill="#16a34a" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -375,10 +357,10 @@ export const DashboardBancos = () => {
           <Card className="shadow-sm">
             <div className="p-4">
               <h2 className="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200">
-                Recaudo por Ciudad
+                RECAUDO POR CIUDAD
               </h2>
               <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={data.ventas_por_ciudad} layout="vertical">
+                <BarChart data={ciudadesOrdenadas} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis
                     type="number"
@@ -386,12 +368,12 @@ export const DashboardBancos = () => {
                     style={{ fontSize: '11px' }}
                     tickFormatter={(value) => fmtShort(value)}
                   />
-                  <YAxis 
-                    dataKey="ciudad" 
-                    type="category" 
-                    stroke="#6b7280" 
-                    style={{ fontSize: '11px' }} 
-                    width={120} 
+                  <YAxis
+                    dataKey="ciudad"
+                    type="category"
+                    stroke="#6b7280"
+                    style={{ fontSize: '11px' }}
+                    width={120}
                   />
                   <Tooltip
                     contentStyle={{
@@ -402,7 +384,7 @@ export const DashboardBancos = () => {
                     }}
                     formatter={(value: number) => fmt(value)}
                   />
-                  <Bar dataKey="recaudo" name="Recaudo" fill="#1e40af" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="recaudo" name="Recaudo" fill="#15803d" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -413,7 +395,7 @@ export const DashboardBancos = () => {
           <Card className="shadow-sm">
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-800 mb-5 pb-3 border-b border-gray-200">
-                Ciudades con mayor impacto
+                CIUDADES CON MAYOR IMPACTO
               </h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-lg">
@@ -433,7 +415,7 @@ export const DashboardBancos = () => {
                         <td className="py-3 pr-3 font-semibold text-gray-900">{c.ciudad}</td>
                         <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtShort(c.ventas)}</td>
                         <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtShort(c.recaudo)}</td>
-                        <td className="py-3 px-3 text-right text-gray-900 font-semibold">{c.efectividad.toFixed(1)}%</td>
+                        <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtPct(c.efectividad)}</td>
                         <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtShort(c.brecha)}</td>
                         <td className="py-3 pl-3 text-center">
                           <span className={`px-3 py-1 rounded-full text-base font-semibold ${c.prioridad.className}`}>
@@ -456,7 +438,7 @@ export const DashboardBancos = () => {
           <Card className="shadow-sm">
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-800 mb-5 pb-3 border-b border-gray-200">
-                Seguimiento mensual
+                SEGUIMIENTO MENSUAL
               </h2>
               <div className="overflow-x-auto">
                 <table className="w-full text-lg">
@@ -475,7 +457,7 @@ export const DashboardBancos = () => {
                         <td className="py-3 pr-3 font-semibold text-gray-900">{m.mes}</td>
                         <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtShort(m.ventas_netas)}</td>
                         <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtShort(m.recaudo)}</td>
-                        <td className="py-3 px-3 text-right text-gray-900 font-semibold">{m.efectividad.toFixed(1)}%</td>
+                        <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtPct(m.efectividad)}</td>
                         <td
                           className={`py-3 pl-3 text-right text-lg font-bold ${
                             m.variacion === null
@@ -485,7 +467,7 @@ export const DashboardBancos = () => {
                                 : 'text-red-600'
                           }`}
                         >
-                          {m.variacion === null ? 'Base' : `${m.variacion >= 0 ? '+' : ''}${m.variacion.toFixed(1)}%`}
+                          {m.variacion === null ? 'Base' : `${m.variacion >= 0 ? '+' : ''}${fmtPct(m.variacion)}`}
                         </td>
                       </tr>
                     ))}

@@ -1,137 +1,160 @@
 import { NavLink, useNavigate } from 'react-router-dom'
+import { useState } from 'react'
 import {
-  LayoutDashboard,
-  Building2,
-  Wallet,
-  MessageSquare,
-  LogOut,
-  ChevronRight,
-  PanelLeftClose,
-  PanelLeftOpen,
+  LayoutDashboard, Wallet, Building2, MessageSquare,
+  LogOut, ChevronLeft, ChevronRight,
 } from 'lucide-react'
-import { clsx } from 'clsx'
 import { useAuthStore } from '../../store/authStore'
-import { logout as apiLogout } from '../../api/auth'
+import { useAuth } from '../../hooks/useAuth'
+import { logout as logoutApi } from '../../api/auth'
 
-const navItems: Array<{ to: string; icon: typeof Wallet; label: string; highlight?: boolean }> = [
-  { to: '/cartera', icon: Wallet, label: 'Cartera', highlight: true },
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Panel Ejecutivo' },
-  { to: '/bancos', icon: Building2, label: 'Bancos' },
-  { to: '/agente', icon: MessageSquare, label: 'Centro de Mando' },
-]
-
-export const Sidebar = ({
-  collapsed,
-  onToggle,
-}: {
+interface SidebarProps {
   collapsed: boolean
   onToggle: () => void
-}) => {
+}
+
+const NAV_ITEMS = [
+  { to: '/dashboard', label: 'Panel Ejecutivo', icon: LayoutDashboard },
+  { to: '/cartera',   label: 'Cartera',         icon: Wallet          },
+  { to: '/bancos',    label: 'Bancos',           icon: Building2       },
+  { to: '/agente',    label: 'Centro de Mando',  icon: MessageSquare   },
+]
+
+export const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
   const logoSources = ['/dist/assets/grupo-rp-noback.png', '/assets/grupo-rp-noback.png']
-  const { user, logout } = useAuthStore()
+  const [logoIndex, setLogoIndex] = useState(0)
+  const { user } = useAuth()
+  const { logout: storeLogout } = useAuthStore()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
-    try {
-      await apiLogout()
-    } finally {
-      logout()
-      navigate('/login')
-    }
+    try { await logoutApi() } catch { /* ignore */ }
+    storeLogout()
+    navigate('/login', { replace: true })
   }
 
+  const initials = user?.username
+    ? user.username.slice(0, 2).toUpperCase()
+    : '?'
+
   return (
-    <aside className={clsx(
-      'bg-primary-950 text-white flex flex-col h-screen fixed left-0 top-0 z-30 transition-all duration-200',
-      collapsed ? 'w-20' : 'w-64'
-    )}>
-      {/* Logo */}
-      <div className={clsx('border-b border-primary-800', collapsed ? 'p-3' : 'p-5')}>
-        <div className={clsx('flex items-center', collapsed ? 'justify-center' : 'gap-3')}>
-          <img
-            src={logoSources[0]}
-            alt="Grupo RP"
-            className="w-9 h-9 rounded-lg object-contain bg-primary-500/20 p-1"
-            onError={(e) => { e.currentTarget.src = logoSources[1] }}
-          />
-          {!collapsed && <div>
-            <div className="font-bold text-sm leading-tight">Grupo RP</div>
-            <div className="text-primary-400 text-xs">Sistema Operativo</div>
-          </div>}
-        </div>
+    <aside
+      className={`
+        fixed top-0 left-0 h-screen z-30 flex flex-col
+        bg-primary-950 text-white
+        transition-all duration-200 ease-in-out
+        ${collapsed ? 'w-20' : 'w-64'}
+      `}
+    >
+      {/* ── Logo + toggle ── */}
+      <div className="flex items-center justify-between px-4 py-5 border-b border-primary-800">
+        {!collapsed && (
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-primary-700/40 flex items-center justify-center shrink-0 overflow-hidden">
+              <img
+                src={logoSources[logoIndex]}
+                alt="Logo Grupo RP"
+                className="h-6 w-6 object-contain"
+                onError={() => {
+                  if (logoIndex < logoSources.length - 1) setLogoIndex(logoIndex + 1)
+                }}
+              />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-white leading-none truncate">Grupo RP</p>
+              <p className="text-xs text-primary-300 leading-tight truncate">Maestro de reportes</p>
+            </div>
+          </div>
+        )}
+        {collapsed && (
+          <div className="mx-auto h-8 w-8 rounded-lg bg-primary-700/40 flex items-center justify-center overflow-hidden">
+            <img
+              src={logoSources[logoIndex]}
+              alt="Logo Grupo RP"
+              className="h-6 w-6 object-contain"
+              onError={() => {
+                if (logoIndex < logoSources.length - 1) setLogoIndex(logoIndex + 1)
+              }}
+            />
+          </div>
+        )}
         <button
           onClick={onToggle}
-          className={clsx(
-            'mt-3 w-full rounded-lg bg-primary-900 hover:bg-primary-800 text-primary-300 py-1.5 flex items-center justify-center',
-            collapsed ? 'px-0' : 'gap-2'
-          )}
-          title={collapsed ? 'Expandir menú' : 'Contraer menú'}
+          className={`
+            shrink-0 p-1.5 rounded-lg text-primary-400 hover:text-white hover:bg-primary-800
+            transition-colors
+            ${collapsed ? 'mx-auto mt-2' : ''}
+          `}
+          title={collapsed ? 'Expandir' : 'Contraer'}
         >
-          {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-          {!collapsed && <span className="text-xs font-semibold">Contraer</span>}
+          {collapsed
+            ? <ChevronRight className="h-4 w-4" />
+            : <ChevronLeft className="h-4 w-4" />
+          }
         </button>
       </div>
 
-      {/* Nav */}
-      <nav className={clsx('flex-1 space-y-1 overflow-y-auto', collapsed ? 'p-2' : 'p-3')}>
-        {!collapsed && <div className="text-primary-400 text-[11px] font-semibold uppercase tracking-wider px-3 pt-2 pb-1">
-          Panel Ejecutivo
-        </div>}
-        {navItems.map(({ to, icon: Icon, label, highlight }) => (
+      {/* ── Nav ── */}
+      <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
+        {!collapsed && (
+          <p className="px-3 mb-2 text-xs font-bold text-primary-300 uppercase tracking-widest">
+            Panel Ejecutivo
+          </p>
+        )}
+
+        {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
           <NavLink
             key={to}
             to={to}
-            className={({ isActive }) =>
-              clsx(
-                'flex items-center gap-3 px-3 rounded-lg font-medium transition-colors group',
-                highlight ? 'py-3.5 text-base' : 'py-2.5 text-sm',
-                isActive
-                  ? highlight 
-                    ? 'bg-yellow-500 text-gray-900 shadow-lg'
-                    : 'bg-primary-700 text-white'
-                  : highlight
-                    ? 'bg-primary-700 text-yellow-300 hover:bg-yellow-500 hover:text-gray-900'
-                    : 'text-primary-300 hover:bg-primary-800 hover:text-white'
-              )
-            }
+            className={({ isActive }) => `
+              flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium min-h-touch
+              transition-colors group
+              ${isActive
+                ? 'bg-primary-600 text-white'
+                : 'text-primary-300 hover:bg-primary-800 hover:text-white'
+              }
+              ${collapsed ? 'justify-center' : ''}
+            `}
+            title={collapsed ? label : undefined}
           >
             {({ isActive }) => (
               <>
-                <Icon className={clsx(
-                  'flex-shrink-0',
-                  highlight ? 'h-5 w-5' : 'h-4 w-4',
-                  isActive 
-                    ? highlight ? 'text-gray-900' : 'text-primary-300'
-                    : highlight ? 'text-yellow-300 group-hover:text-gray-900' : 'text-primary-400 group-hover:text-primary-300'
-                )} />
-                {!collapsed && <span className="flex-1">{label}</span>}
-                {!collapsed && isActive && <ChevronRight className={clsx('text-primary-400', highlight ? 'h-4 w-4 text-gray-700' : 'h-3 w-3')} />}
+                <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-white' : 'text-primary-400 group-hover:text-white'}`} />
+                {!collapsed && <span className="truncate">{label}</span>}
               </>
             )}
           </NavLink>
         ))}
       </nav>
 
-      {/* User */}
-      <div className={clsx('border-t border-primary-800', collapsed ? 'p-2' : 'p-3')}>
-        <div className={clsx('flex items-center px-3 py-2 rounded-lg', collapsed ? 'justify-center' : 'gap-3')}>
-          <div className="w-8 h-8 bg-primary-700 rounded-full flex items-center justify-center text-xs font-bold text-primary-200 flex-shrink-0">
-            {user?.first_name?.[0]?.toUpperCase() ?? user?.username?.[0]?.toUpperCase() ?? 'U'}
+      {/* ── User + logout ── */}
+      <div className="border-t border-primary-800 px-2 py-3">
+        <div className={`flex items-center gap-3 px-2 py-2 rounded-xl ${collapsed ? 'justify-center' : ''}`}>
+          <div className="h-8 w-8 rounded-full bg-primary-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+            {initials}
           </div>
-          {!collapsed && <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">{user?.first_name || user?.username}</div>
-            <div className="text-primary-400 text-xs truncate">{user?.rol ?? 'Usuario'}</div>
-          </div>}
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-white truncate">{user?.username ?? '—'}</p>
+              {user?.rol && (
+                <p className="text-xs text-primary-300 truncate">{user.rol}</p>
+              )}
+            </div>
+          )}
         </div>
+
         <button
           onClick={handleLogout}
-          className={clsx(
-            'w-full flex items-center rounded-lg text-sm text-primary-300 hover:bg-primary-800 hover:text-white transition-colors mt-1',
-            collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5'
-          )}
+          className={`
+            mt-1 w-full flex items-center gap-2 px-3 py-3 rounded-xl text-sm font-medium min-h-touch
+            text-primary-300 hover:text-white hover:bg-primary-800
+            transition-colors
+            ${collapsed ? 'justify-center' : ''}
+          `}
+          title="Cerrar sesión"
         >
-          <LogOut className="h-4 w-4" />
-          {!collapsed && 'Cerrar sesion'}
+          <LogOut className="h-4 w-4 shrink-0" />
+          {!collapsed && <span>Cerrar sesion</span>}
         </button>
       </div>
     </aside>

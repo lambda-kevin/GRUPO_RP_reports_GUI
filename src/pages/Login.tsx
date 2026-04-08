@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import axios from 'axios'
-import { Activity, Eye, EyeOff, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { login, getMe } from '../api/auth'
 import { useAuthStore } from '../store/authStore'
 import { clsx } from 'clsx'
@@ -21,6 +21,8 @@ export const Login = () => {
   const { setAccessToken, setUser } = useAuthStore()
   const [showPassword, setShowPassword] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
+  const logoSources = ['/dist/assets/grupo-rp-noback.png', '/assets/grupo-rp-noback.png']
+  const [logoIndex, setLogoIndex] = useState(0)
 
   const {
     register,
@@ -56,11 +58,18 @@ export const Login = () => {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-2xl mb-4">
-            <Activity className="h-8 w-8 text-primary-300" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-white/10 rounded-2xl mb-4 overflow-hidden">
+            <img
+              src={logoSources[logoIndex]}
+              alt="Logo Grupo RP"
+              className="h-10 w-10 object-contain"
+              onError={() => {
+                if (logoIndex < logoSources.length - 1) setLogoIndex(logoIndex + 1)
+              }}
+            />
           </div>
           <h1 className="text-2xl font-bold text-white">Grupo RP</h1>
-          <p className="text-primary-400 text-sm mt-1">Sistema Operativo</p>
+          <p className="text-primary-400 text-sm mt-1">Maestro de reportes</p>
         </div>
 
         {/* Card */}

@@ -1,249 +1,385 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { TrendingUp, AlertTriangle, DollarSign, Users, CheckCircle, XCircle, Clock, Building2, Activity } from 'lucide-react'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, Cell,
+} from 'recharts'
+import {
+  TrendingUp, AlertTriangle, DollarSign, Users,
+  CheckCircle, XCircle, Clock, Activity, Search,
+  Calendar, ShieldAlert, Building2, RefreshCw,
+} from 'lucide-react'
 import { getDashboardResumen } from '../api/dashboard'
-import { Header } from '../components/layout/Header'
+import { Spinner, PageLoader } from '../components/ui/Spinner'
 import { Card } from '../components/ui/Card'
-import { StatCard } from '../components/dashboard/StatCard'
-import { AlertCard } from '../components/dashboard/AlertCard'
-import { Spinner } from '../components/ui/Spinner'
 import { Badge } from '../components/ui/Badge'
+import { fmtCOP, fmtCOPShort, fmtPct } from '../utils/fmt'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import type { BancosResumen, CarteraResumen } from '../types'
 
-// Type guards para narrowing seguro
 const hasBancos = (b: unknown): b is BancosResumen =>
   typeof b === 'object' && b !== null && 'fecha_corte' in b
 const hasCartera = (c: unknown): c is CarteraResumen =>
-  typeof c === 'object' && c !== null && 'fecha_corte' in c
+  typeof c === 'object' && c !== null && 'total_cartera' in c
 
-const COLORS = ['#56b781', '#f59e0b', '#ef4444']
+const hoy = () => new Date().toISOString().slice(0, 10)
 
-const fmt = (n: number) => {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`
-  return `$${n.toFixed(0)}`
+/** Parses a "YYYY-MM-DD" string as LOCAL date (avoids UTC-midnight timezone shift) */
+const parseLocalDate = (s: string) => {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+const TRAMO_COLORS: Record<string, string> = {
+  'Vigente':  '#16a34a',
+  '1-30 d':   '#65a30d',
+  '31-60 d':  '#ca8a04',
+  '61-90 d':  '#ea580c',
+  '91-180 d': '#dc2626',
+  '+180 d':   '#7f1d1d',
+}
+
+interface KPIProps {
+  label: string
+  value: string
+  sub?: string
+  icon: React.ReactNode
+  color: 'green' | 'red' | 'orange' | 'gray' | 'blue'
+  pct?: number
+}
+
+const KPI = ({ label, value, sub, icon, color, pct }: KPIProps) => {
+  const bg = {
+    green:  'bg-green-50 border-green-200',
+    red:    'bg-red-50 border-red-200',
+    orange: 'bg-orange-50 border-orange-200',
+    gray:   'bg-gray-50 border-gray-200',
+    blue:   'bg-blue-50 border-blue-200',
+  }[color]
+  const iconCls = {
+    green:  'text-green-600',
+    red:    'text-red-600',
+    orange: 'text-orange-500',
+    gray:   'text-gray-500',
+    blue:   'text-blue-600',
+  }[color]
+  const valCls = {
+    green:  'text-green-800',
+    red:    'text-red-700',
+    orange: 'text-orange-700',
+    gray:   'text-gray-800',
+    blue:   'text-blue-800',
+  }[color]
+
+  return (
+    <div className={`rounded-2xl border p-5 ${bg} flex flex-col gap-2`}>
+      <div className="flex items-start justify-between">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-tight">{label}</p>
+        <span className={`${iconCls} opacity-70`}>{icon}</span>
+      </div>
+      <p className={`text-3xl font-extrabold ${valCls} leading-none`}>{value}</p>
+      {(sub || pct !== undefined) && (
+        <p className="text-xs text-gray-500 mt-1">
+          {pct !== undefined && <span className="font-semibold">{fmtPct(pct)} del total · </span>}
+          {sub}
+        </p>
+      )}
+    </div>
+  )
 }
 
 export const Dashboard = () => {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['dashboard-resumen'],
-    queryFn: getDashboardResumen,
+  const [fechaInput, setFechaInput] = useState(hoy())
+  const [fechaCorte, setFechaCorte] = useState<string | undefined>(undefined)
+
+  const { data, isLoading, error, dataUpdatedAt, refetch, isFetching } = useQuery({
+    queryKey: ['dashboard-resumen', fechaCorte],
+    queryFn: () => getDashboardResumen(fechaCorte),
     refetchInterval: 1000 * 60 * 5,
   })
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Spinner className="h-8 w-8 text-primary-600" />
-      </div>
-    )
-  }
+  const aplicar = () => setFechaCorte(fechaInput || undefined)
+
+  if (isLoading) return <PageLoader label="Cargando panel ejecutivo..." />
 
   if (error || !data) {
     return (
       <div className="p-6 text-center text-red-600 text-sm">
-        Error cargando el dashboard. Intenta de nuevo.
+        Error cargando el panel. Intenta de nuevo.
       </div>
     )
   }
 
   const { bancos: bancosRaw, cartera: carteraRaw, pipelines, alertas } = data
+  const bancos  = hasBancos(bancosRaw)   ? bancosRaw   : null
+  const cartera = hasCartera(carteraRaw) ? carteraRaw  : null
 
-  // Narrowing seguro con type guards
-  const bancos = hasBancos(bancosRaw) ? bancosRaw : null
-  const cartera = hasCartera(carteraRaw) ? carteraRaw : null
-
-  const carteraChartData = cartera
-    ? [
-        { name: 'Al día', value: cartera.frescas, fmt: fmt(cartera.frescas) },
-        { name: 'Atención', value: cartera.atencion, fmt: fmt(cartera.atencion) },
-        { name: 'Riesgo', value: cartera.riesgo, fmt: fmt(cartera.riesgo) },
-      ]
-    : []
-
-  const bancosChartData = bancos
-    ? [
-        { name: 'Identificados', value: bancos.total_identificados },
-        { name: 'Sin ID', value: bancos.total_no_identificados },
-      ]
-    : []
+  const ultimaActualizacion = dataUpdatedAt
+    ? format(new Date(dataUpdatedAt), "d MMM yyyy · HH:mm", { locale: es })
+    : null
 
   return (
-    <div className="h-full overflow-y-auto bg-gray-100/60">
-      <Header
-        title="Panel Ejecutivo"
-        subtitle={bancos ? `Corte: ${format(new Date(bancos.fecha_corte), 'PPP', { locale: es })}` : 'Sin corte reciente'}
-      />
+    <div className="h-full overflow-y-auto bg-gray-50">
 
-      <div className="p-7 space-y-7">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center">
-                <Building2 className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase font-semibold">Bancos activos</p>
-                <p className="text-xl font-extrabold text-gray-900">{bancos ? bancos.total_transacciones.toLocaleString('es-CO') : '0'}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
-                <Users className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase font-semibold">Clientes críticos</p>
-                <p className="text-xl font-extrabold text-gray-900">{cartera ? cartera.top_criticos.length : 0}</p>
-              </div>
-            </div>
-          </Card>
-          <Card className="shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-purple-100 text-purple-700 flex items-center justify-center">
-                <Activity className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-xs text-gray-500 uppercase font-semibold">Estado general</p>
-                <p className="text-xl font-extrabold text-gray-900">{alertas?.[0]?.titulo ?? 'Sin alertas'}</p>
-              </div>
-            </div>
-          </Card>
+      {/* ── HEADER ── */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
+        <div className="px-6 lg:px-10 py-4 flex flex-wrap items-center gap-4">
+          <div className="min-w-[200px]">
+            <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Panel Ejecutivo</h1>
+            <p className="text-xs text-gray-600 mt-0.5">Grupo RP — Cartera en tiempo real</p>
+          </div>
+
+          {/* Filtro fecha de corte */}
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 ml-auto">
+            <Calendar className="h-4 w-4 text-gray-600 shrink-0" />
+            <label className="text-sm font-semibold text-gray-700">Fecha de corte</label>
+            <input
+              type="date"
+              value={fechaInput}
+              onChange={e => setFechaInput(e.target.value)}
+              className="text-base px-3 py-2 rounded-lg border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-green-500 w-40 min-h-touch"
+            />
+            <button
+              onClick={aplicar}
+              className="flex items-center gap-1.5 bg-green-700 hover:bg-green-800 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-colors min-h-touch"
+            >
+              <Search className="h-4 w-4" /> Consultar
+            </button>
+          </div>
+
+          {/* Última actualización + refresh */}
+          <div className="flex items-center gap-2 text-xs text-gray-600">
+            {isFetching && <Spinner className="h-3.5 w-3.5" />}
+            {ultimaActualizacion && <span>Act. {ultimaActualizacion}</span>}
+            <button onClick={() => refetch()} title="Actualizar" className="p-1.5 rounded hover:text-green-700 hover:bg-gray-100 transition-colors min-h-touch min-w-touch flex items-center justify-center">
+              <RefreshCw className="h-4 w-4" />
+            </button>
+          </div>
         </div>
+      </div>
 
-        {/* Alertas */}
+      <div className="p-6 lg:p-10 space-y-8">
+
+        {/* ── ALERTAS ── */}
         {alertas?.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {alertas.map((a, i) => (
-              <AlertCard key={i} alert={a} />
-            ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {alertas.map((a, i) => {
+              const styles = {
+                ok:    { bg: 'bg-green-50 border-green-200',  icon: <CheckCircle className="h-4 w-4 text-green-600" />,  txt: 'text-green-800' },
+                warn:  { bg: 'bg-amber-50 border-amber-200',  icon: <AlertTriangle className="h-4 w-4 text-amber-500" />, txt: 'text-amber-800' },
+                error: { bg: 'bg-red-50 border-red-200',      icon: <XCircle className="h-4 w-4 text-red-600" />,        txt: 'text-red-800'   },
+              }[a.nivel] ?? { bg: 'bg-gray-50 border-gray-200', icon: null, txt: 'text-gray-700' }
+              return (
+                <div key={i} className={`rounded-xl border px-4 py-3 flex items-start gap-3 ${styles.bg}`}>
+                  <span className="mt-0.5 shrink-0">{styles.icon}</span>
+                  <div>
+                    <p className={`text-xs font-bold uppercase tracking-wide ${styles.txt}`}>{a.titulo}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">{a.descripcion}</p>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         )}
 
-        {/* Stats bancos */}
-        {bancos && (
+        {/* ── KPIs CARTERA ── */}
+        {cartera ? (
           <>
             <div>
-              <h2 className="text-base font-semibold text-gray-600 uppercase tracking-wider mb-4">Bancos - Ultimo corte</h2>
+              <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">
+                Cartera — Corte {format(parseLocalDate(cartera.fecha_corte), "d 'de' MMMM yyyy", { locale: es })}
+              </h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <StatCard title="Ingresos totales" value={bancos.ingresos_fmt} icon={DollarSign} color="green" />
-                <StatCard title="Identificados" value={bancos.identificados_fmt} icon={CheckCircle} color="blue" />
-                <StatCard title="Sin identificar" value={bancos.no_identificados_fmt} icon={AlertTriangle} color="yellow" />
-                <StatCard
-                  title="Diferencias"
-                  value={String(bancos.bancos_con_diferencia)}
-                  subtitle="bancos con cuadre"
-                  icon={bancos.bancos_con_diferencia > 0 ? XCircle : CheckCircle}
-                  color={bancos.bancos_con_diferencia > 0 ? 'red' : 'green'}
+                <KPI
+                  label="Cartera total"
+                  value={fmtCOPShort(cartera.total_cartera)}
+                  sub={`${cartera.clientes_count} clientes activos`}
+                  icon={<DollarSign className="h-5 w-5" />}
+                  color="green"
+                />
+                <KPI
+                  label="Cartera vencida"
+                  value={fmtCOPShort(cartera.total_vencida)}
+                  sub="Facturas con días de mora"
+                  pct={cartera.pct_vencida}
+                  icon={<TrendingUp className="h-5 w-5" />}
+                  color="orange"
+                />
+                <KPI
+                  label="Mora crítica +90 días"
+                  value={fmtCOPShort(cartera.mora_90)}
+                  sub={`${cartera.clientes_criticos_count} clientes en mora crítica`}
+                  pct={cartera.pct_mora_90}
+                  icon={<ShieldAlert className="h-5 w-5" />}
+                  color="red"
+                />
+                <KPI
+                  label="Al día / Vigente"
+                  value={fmtCOPShort(cartera.frescas)}
+                  sub="Corriente + 1-30 días"
+                  icon={<CheckCircle className="h-5 w-5" />}
+                  color="gray"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="shadow-sm">
-                <h3 className="text-base font-semibold text-gray-800 mb-4">Distribucion de ingresos</h3>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
-                    <Pie data={bancosChartData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
-                      {bancosChartData.map((_, i) => (
-                        <Cell key={i} fill={i === 0 ? '#56b781' : '#f59e0b'} />
-                      ))}
-                    </Pie>
-                    <Tooltip formatter={(v: number) => fmt(v)} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="flex gap-4 justify-center text-xs text-gray-600 mt-2">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-primary-500 inline-block" />Identificados</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-yellow-400 inline-block" />Sin identificar</span>
+            {/* ── DISTRIBUCIÓN + TOP CRÍTICOS ── */}
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+
+              {/* Distribución por tramo — 2 cols */}
+              <Card className="shadow-sm lg:col-span-2">
+                <div className="p-5">
+                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-4">
+                    DISTRIBUCIÓN POR TRAMO DE MORA
+                  </h3>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={cartera.distribucion} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                      <XAxis dataKey="tramo" tick={{ fontSize: 10, fill: '#6b7280' }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} tickFormatter={v => fmtCOPShort(v)} width={54} />
+                      <Tooltip
+                        formatter={(v: number) => fmtCOP(v as number)}
+                        contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                      />
+                      <Bar dataKey="monto" name="Monto" radius={[4, 4, 0, 0]}>
+                        {cartera.distribucion.map((d) => (
+                          <Cell key={d.tramo} fill={TRAMO_COLORS[d.tramo] ?? '#94a3b8'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                  {/* Leyenda compacta */}
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3">
+                    {cartera.distribucion.filter(d => d.monto > 0).map(d => (
+                      <span key={d.tramo} className="flex items-center gap-1 text-xs text-gray-500">
+                        <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: TRAMO_COLORS[d.tramo] ?? '#94a3b8' }} />
+                        {d.tramo}: <strong className="text-gray-700">{fmtCOPShort(d.monto)}</strong>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </Card>
 
-              {/* Pipelines */}
-              <Card className="shadow-sm">
-                <h3 className="text-base font-semibold text-gray-800 mb-4">Estado de pipelines</h3>
-                <div className="space-y-3">
-                  {pipelines.map((p) => (
-                    <div key={p.nombre} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
-                      <Badge nivel={p.nivel}>{p.estado}</Badge>
-                      <span className="flex-1 text-base font-medium text-gray-700">{p.nombre}</span>
-                      <span className="text-sm text-gray-400 flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {p.ultima_ejecucion ? format(new Date(p.ultima_ejecucion), 'HH:mm') : 'N/A'}
-                      </span>
+              {/* Top críticos — 3 cols */}
+              <Card className="shadow-sm lg:col-span-3">
+                <div className="p-5">
+                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-4">
+                    CLIENTES EN MORA CRÍTICA (+90 DÍAS)
+                  </h3>
+                  {cartera.top_criticos.length === 0 ? (
+                    <div className="flex items-center gap-2 text-green-600 py-6">
+                      <CheckCircle className="h-5 w-5" />
+                      <p className="text-sm font-semibold">Sin clientes en mora crítica</p>
                     </div>
-                  ))}
-                  {pipelines.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-4">Sin datos de pipelines</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {cartera.top_criticos.map((c, i) => {
+                        const pct = cartera.total_cartera > 0 ? (c.mora_90 / cartera.total_cartera) * 100 : 0
+                        return (
+                          <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
+                            <span className="w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center shrink-0">
+                              {i + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{c.nombre}</p>
+                              <p className="text-xs text-gray-600 truncate">{c.ciudad}{c.vendedor ? ` · ${c.vendedor}` : ''}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="text-sm font-bold text-red-600">{fmtCOPShort(c.mora_90)}</p>
+                              <p className="text-xs text-gray-600">{fmtPct(pct)} del total</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
               </Card>
             </div>
           </>
-        )}
-
-        {/* Cartera */}
-        {cartera && (
-          <div>
-            <h2 className="text-base font-semibold text-gray-600 uppercase tracking-wider mb-4">
-              Cartera — {format(new Date(cartera.fecha_corte), 'PPP', { locale: es })}
-            </h2>
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
-              <StatCard title="Al dia (0-30 dias)" value={cartera.frescas_fmt} icon={CheckCircle} color="green" />
-              <StatCard title="Atencion (31-60 dias)" value={cartera.atencion_fmt} icon={TrendingUp} color="yellow" />
-              <StatCard title="Riesgo (+61 dias)" value={cartera.riesgo_fmt} icon={AlertTriangle} color="red" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="shadow-sm">
-                <h3 className="text-base font-semibold text-gray-800 mb-4">Distribucion de cartera</h3>
-                <ResponsiveContainer width="100%" height={220}>
-                  <BarChart data={carteraChartData} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => fmt(v)} />
-                    <Tooltip formatter={(v: number) => fmt(v)} />
-                    <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                      {carteraChartData.map((_, i) => (
-                        <Cell key={i} fill={COLORS[i]} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </Card>
-
-              <Card className="shadow-sm">
-                <h3 className="text-base font-semibold text-gray-800 mb-4">Top clientes criticos</h3>
-                <div className="space-y-2">
-                  {cartera.top_criticos.map((c, i) => (
-                    <div key={i} className="flex items-center gap-3 py-2">
-                      <span className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
-                        {i + 1}
-                      </span>
-                      <span className="flex-1 text-sm text-gray-700 truncate">{c.nombre}</span>
-                      <span className="text-sm font-semibold text-red-600">{fmt(c.deuda)}</span>
-                    </div>
-                  ))}
-                  {cartera.top_criticos.length === 0 && (
-                    <p className="text-sm text-gray-400 text-center py-4">Sin clientes criticos</p>
-                  )}
-                </div>
-              </Card>
-            </div>
-          </div>
-        )}
-
-        {!bancos && !cartera && (
+        ) : (
           <Card>
-            <div className="text-center py-12 text-gray-400">
-              <Users className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p className="text-sm">No hay datos disponibles aun. Ejecuta los pipelines ETL para ver informacion.</p>
+            <div className="text-center py-10 text-gray-600">
+              <Users className="h-10 w-10 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">Sin datos de cartera. Verifica la conexión con Saint.</p>
             </div>
           </Card>
         )}
+
+        {/* ── BANCOS + PIPELINES ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+          {/* Bancos */}
+          {bancos && (
+            <Card className="shadow-sm">
+              <div className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                    BANCOS — ÚLTIMO CORTE
+                  </h3>
+                  <span className="text-xs text-gray-600">
+                    {format(parseLocalDate(bancos.fecha_corte), "d MMM yyyy", { locale: es })}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-green-50 rounded-xl p-3 border border-green-100">
+                    <p className="text-xs text-gray-500 font-semibold uppercase">Ingresos</p>
+                    <p className="text-xl font-extrabold text-green-800">{fmtCOPShort(bancos.total_ingresos)}</p>
+                  </div>
+                  <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
+                    <p className="text-xs text-gray-500 font-semibold uppercase">Identificados</p>
+                    <p className="text-xl font-extrabold text-blue-800">{fmtCOPShort(bancos.total_identificados)}</p>
+                  </div>
+                  <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
+                    <p className="text-xs text-gray-500 font-semibold uppercase">Sin identificar</p>
+                    <p className="text-xl font-extrabold text-amber-700">{fmtCOPShort(bancos.total_no_identificados)}</p>
+                  </div>
+                  <div className={`rounded-xl p-3 border ${bancos.bancos_con_diferencia > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100'}`}>
+                    <p className="text-xs text-gray-500 font-semibold uppercase">Diferencias</p>
+                    <p className={`text-xl font-extrabold ${bancos.bancos_con_diferencia > 0 ? 'text-red-700' : 'text-gray-600'}`}>
+                      {bancos.bancos_con_diferencia > 0 ? `${bancos.bancos_con_diferencia} bancos` : 'Sin diferencias'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-xs text-gray-600">
+                  <Building2 className="h-3.5 w-3.5" />
+                  {bancos.total_transacciones.toLocaleString('es-CO')} transacciones procesadas
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Pipelines */}
+          <Card className="shadow-sm">
+            <div className="p-5">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                  ESTADO DE PIPELINES
+                </h3>
+                <Activity className="h-4 w-4 text-gray-600" />
+              </div>
+              <div className="space-y-3">
+                {pipelines.map((p) => (
+                  <div key={p.nombre} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
+                    <Badge nivel={p.nivel}>{p.estado}</Badge>
+                    <span className="flex-1 text-sm font-medium text-gray-700">{p.nombre}</span>
+                    <span className="text-xs text-gray-600 flex items-center gap-1 shrink-0">
+                      <Clock className="h-3 w-3" />
+                      {p.ultima_ejecucion
+                        ? format(new Date(p.ultima_ejecucion), "d MMM · HH:mm", { locale: es })
+                        : 'N/A'}
+                    </span>
+                  </div>
+                ))}
+                {pipelines.length === 0 && (
+                  <p className="text-sm text-gray-600 text-center py-6">Sin datos de pipelines</p>
+                )}
+              </div>
+            </div>
+          </Card>
+        </div>
+
       </div>
     </div>
   )
