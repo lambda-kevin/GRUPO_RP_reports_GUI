@@ -346,6 +346,23 @@ export const Dashboard = () => {
                   <Building2 className="h-3.5 w-3.5" />
                   {bancos.total_transacciones.toLocaleString('es-CO')} transacciones procesadas
                 </div>
+                {!!bancos.top_regiones?.length && (
+                  <div className="mt-4 border-t border-gray-100 pt-3">
+                    <p className="text-xs font-bold text-gray-600 uppercase tracking-wide mb-2">
+                      Bancos · Top regiones
+                    </p>
+                    <div className="space-y-1.5">
+                      {bancos.top_regiones.slice(0, 3).map((r) => (
+                        <div key={r.departamento} className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-gray-700">{r.departamento}</span>
+                          <span className="text-gray-600">
+                            {fmtCOPShort(r.ventas)} / {fmtCOPShort(r.recaudo)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </Card>
           )}

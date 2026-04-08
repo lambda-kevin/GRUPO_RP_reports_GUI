@@ -110,6 +110,7 @@ export const DashboardBancos = () => {
   const kpis = data.kpis
   const brechaGlobal = Math.max(0, kpis.ventas_netas - kpis.recaudo)
   const ciudadesOrdenadas = [...data.ventas_por_ciudad].sort((a, b) => b.ventas - a.ventas)
+  const regionesOrdenadas = [...(data.ventas_por_region ?? [])].sort((a, b) => b.ventas - a.ventas)
   const mesesOrdenados = [...data.ventas_por_mes].sort((a, b) => a.mes_num - b.mes_num)
   const ciudadesDetalle = ciudadesOrdenadas.map((c) => {
     const efectividad = pct(c.recaudo, c.ventas)
@@ -269,6 +270,45 @@ export const DashboardBancos = () => {
             </div>
           </Card>
         </div>
+
+        {/* Vista macro por región (mismo concepto que Cartera por Región) */}
+        <Card className="shadow-sm">
+          <div className="p-6">
+            <h2 className="text-lg font-semibold text-gray-800 mb-5 pb-3 border-b border-gray-200">
+              VISTA MACRO · VENTAS Y RECAUDO POR REGIÓN
+            </h2>
+            {regionesOrdenadas.length === 0 ? (
+              <p className="text-sm text-gray-500">Sin datos regionales para los filtros seleccionados.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-lg">
+                  <thead>
+                    <tr className="border-b border-gray-200 text-base text-gray-600 uppercase tracking-wide">
+                      <th className="text-left py-3 pr-3">Región</th>
+                      <th className="text-right py-3 px-3">Ciudades</th>
+                      <th className="text-right py-3 px-3">Ventas</th>
+                      <th className="text-right py-3 px-3">Recaudo</th>
+                      <th className="text-right py-3 px-3">% Ventas</th>
+                      <th className="text-right py-3 pl-3">% Recaudo</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {regionesOrdenadas.map((r) => (
+                      <tr key={r.departamento} className="hover:bg-gray-50 even:bg-gray-50/50">
+                        <td className="py-3 pr-3 font-semibold text-gray-900">{r.departamento}</td>
+                        <td className="py-3 px-3 text-right text-gray-900 font-semibold">{r.ciudades_count}</td>
+                        <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtShort(r.ventas)}</td>
+                        <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtShort(r.recaudo)}</td>
+                        <td className="py-3 px-3 text-right text-gray-900 font-semibold">{fmtPct(r.porcentaje_ventas)}</td>
+                        <td className="py-3 pl-3 text-right text-gray-900 font-semibold">{fmtPct(r.porcentaje_recaudo)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </Card>
 
         {/* Gráfico Principal - Ventas vs Recaudo Mensual */}
         <Card>

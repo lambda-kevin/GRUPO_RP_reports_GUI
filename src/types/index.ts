@@ -45,6 +45,42 @@ export interface SnapCartera {
   ciudad: string
   vendedor: string
   linea: string
+  convenio: string
+  perfil_cliente: string
+}
+
+export interface ClienteGrupo {
+  cliente_nit: string
+  cliente_nombre: string
+  ciudad: string
+  vendedor: string
+  convenio: string
+  total_deuda: number
+  vigente: number
+  dias_1_30: number
+  dias_31_60: number
+  dias_61_90: number
+  dias_91_180: number
+  mas_180_dias: number
+  total_vencida: number
+  mora_90: number
+  dias_mora_max: number
+}
+
+export interface GrupoAgregado {
+  perfil: string
+  peso: number
+  clientes_count: number
+  total_deuda: number
+  vigente: number
+  dias_1_30: number
+  dias_31_60: number
+  dias_61_90: number
+  dias_91_mas: number
+  total_vencida: number
+  mora_90: number
+  porcentaje: number
+  clientes: ClienteGrupo[]
 }
 
 export interface Factura {
@@ -53,6 +89,23 @@ export interface Factura {
   fecha_vencimiento: string
   dias_vencida: number
   saldo: number
+}
+
+export interface RegionAgregada {
+  ranking: number
+  departamento: string
+  clientes_count: number
+  ciudades_count: number
+  total_deuda: number
+  vigente: number
+  dias_1_30: number
+  dias_31_60: number
+  dias_61_90: number
+  dias_91_mas: number
+  total_vencida: number
+  mora_90: number
+  porcentaje: number
+  ciudades: CiudadAgregada[]
 }
 
 export interface CiudadAgregada {
@@ -142,6 +195,11 @@ export interface BancosResumen {
   total_no_identificados: number
   total_transacciones: number
   bancos_con_diferencia: number
+  top_regiones?: Array<{
+    departamento: string
+    ventas: number
+    recaudo: number
+  }>
   ingresos_fmt: string
   identificados_fmt: string
   no_identificados_fmt: string
@@ -254,9 +312,24 @@ export interface VentaMensual {
 
 export interface VentaCiudad {
   ciudad: string
+  departamento?: string
   ciudad_original?: string | null
   ventas: number
   recaudo: number
+}
+
+export interface VentaRegion {
+  departamento: string
+  ventas: number
+  recaudo: number
+  ciudades_count: number
+  porcentaje_ventas: number
+  porcentaje_recaudo: number
+  ciudades: Array<{
+    ciudad: string
+    ventas: number
+    recaudo: number
+  }>
 }
 
 export interface OpcionesMes {
@@ -274,6 +347,7 @@ export interface DashboardBancosRespuesta {
   kpis: DashboardBancosKPIs
   ventas_por_mes: VentaMensual[]
   ventas_por_ciudad: VentaCiudad[]
+  ventas_por_region?: VentaRegion[]
   opciones_filtros: {
     ciudades: string[]
     meses: OpcionesMes[]
