@@ -23,7 +23,20 @@ export interface SnapBancos {
   generado_at: string
 }
 
-// SnapCartera — campo correcto es cliente_nit (no cliente_codigo)
+// Desglose por línea de producto embebido en cada cliente consolidado
+export interface LineaDeuda {
+  cod_vend: string        // código numérico: '02', '04', '09'…
+  linea_nombre: string    // nombre desde SAVEND: 'Maxilo', 'Ortopedia'…
+  total_deuda: number
+  vigente: number
+  dias_1_30: number
+  dias_31_60: number
+  dias_61_90: number
+  dias_91_180: number
+  mas_180_dias: number
+}
+
+// SnapCartera — un registro por cliente (consolidado: suma de todas sus líneas)
 export interface SnapCartera {
   id: string
   fecha_corte: string
@@ -37,16 +50,20 @@ export interface SnapCartera {
   mas_180_dias: number
   total_deuda: number
   ultima_factura: string | null
-  // Campos adicionales para reporte ejecutivo
   proxima_fecha_vencimiento: string | null
   responsable_cobro: string
   dias_mora_max: number
   // Dimensiones de negocio
   ciudad: string
+  /** Nombres de línea concatenados, ej: "Maxilo, Ortopedia". NO es nombre de persona. */
   vendedor: string
   linea: string
+  /** Código(s) de línea, ej: "02, 04". Corresponde a CodVend en SAACXC. */
+  cod_vend: string
   convenio: string
   perfil_cliente: string
+  /** Desglose por línea de producto (un item por CodVend) */
+  lineas?: LineaDeuda[]
 }
 
 export interface ClienteGrupo {
@@ -151,8 +168,14 @@ export interface ClienteResumen {
   ciudad?: string
 }
 
-export interface VendedorAgregado {
+/** Cartera agrupada por Línea de Producto (CodVend/SAVEND). "vendedor" es el nombre de la línea, no una persona. */
+export interface LineaAgregada {
+  /** Nombre de la línea desde SAVEND (ej: "Maxilo", "Ortopedia"). */
+  linea: string
+  /** Campo heredado — mismo valor que linea. Mantener para compatibilidad. */
   vendedor: string
+  /** Código numérico de la línea en Saint (ej: "02", "04"). */
+  cod_vend: string
   clientes_count: number
   total_deuda: number
   vigente: number
@@ -164,6 +187,9 @@ export interface VendedorAgregado {
   porcentaje: number
   clientes: ClienteResumen[]
 }
+
+/** @deprecated Usar LineaAgregada */
+export type VendedorAgregado = LineaAgregada
 
 export interface AnalisisIA {
   fecha_corte: string
@@ -356,4 +382,60 @@ export interface DashboardBancosRespuesta {
   }
   ultima_actualizacion: string
   nota?: string
+}
+
+export interface TesoreriaKpis {
+  cxp_total: number
+  cxp_total_fmt: string
+  pagos_7_dias: number
+  pagos_7_dias_fmt: string
+  pagos_30_dias: number
+  pagos_30_dias_fmt: string
+  ingresos_periodo: number
+  ingresos_periodo_fmt: string
+  egresos_periodo: number
+  egresos_periodo_fmt: string
+  flujo_neto_periodo: number
+  flujo_neto_periodo_fmt: string
+}
+
+export interface CxpEdadItem {
+  tramo: string
+  saldo: number
+}
+
+export interface ProximoPagoItem {
+  proveedor: string
+  tipo_proveedor?: 'bancario' | 'proveedores' | 'todos' | string
+  documento: string
+  fecha_vencimiento: string
+  saldo: number
+  dias_para_vencer: number
+}
+
+export interface IngresoBancarioItem {
+  mes: string
+  mes_num: number
+  ingresos: number
+}
+
+export interface FlujoItem {
+  mes: string
+  mes_num: number
+  ingresos: number
+  egresos: number
+  flujo_neto: number
+}
+
+export interface DashboardTesoreriaRespuesta {
+  año: number
+  mes: number | null
+  tipo_proveedor?: 'bancario' | 'proveedores' | 'todos' | string
+  kpis: TesoreriaKpis
+  cxp_por_edad: CxpEdadItem[]
+  proximos_pagos: ProximoPagoItem[]
+  ingresos_bancarios: IngresoBancarioItem[]
+  flujo: FlujoItem[]
+  fuente_db: string
+  ultima_actualizacion: string
 }

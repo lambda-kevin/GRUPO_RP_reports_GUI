@@ -8,6 +8,7 @@ import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { DashboardBancos } from './pages/DashboardBancos'
 import { CarteraInforme } from './pages/CarteraInforme'
+import { Tesoreria } from './pages/Tesoreria'
 import { AgenteChat } from './pages/AgenteChat'
 import { useAuthStore } from './store/authStore'
 import { getDashboardResumen } from './api/dashboard'
@@ -61,6 +62,7 @@ export default function App() {
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/bancos" element={<DashboardBancos />} />
             <Route path="/cartera" element={<CarteraInforme />} />
+            <Route path="/tesoreria" element={<Tesoreria />} />
             <Route path="/agente" element={<AgenteChat />} />
           </Route>
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

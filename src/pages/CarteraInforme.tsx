@@ -12,14 +12,14 @@ import {
 } from 'lucide-react'
 import {
   getCartera, getProximosVencimientos,
-  getCarteraComerciales, getCarteraRegiones, getFacturas,
+  getCarteraLineas, getCarteraRegiones, getFacturas,
   type FiltroFecha,
 } from '../api/dashboard'
 import { Spinner } from '../components/ui/Spinner'
 import { fmtCOP, fmtCOPShort, fmtPct } from '../utils/fmt'
 import type {
   SnapCartera, Factura, ProximoVencimiento,
-  CiudadAgregada, VendedorAgregado, RegionAgregada,
+  CiudadAgregada, LineaAgregada, RegionAgregada,
 } from '../types'
 
 // Aliases locales para uso conciso en este módulo
@@ -37,6 +37,7 @@ const hoy = () => new Date().toISOString().slice(0, 10)
 
 interface ParetoItem {
   nombre: string
+  nombreCompleto: string
   deuda: number
   pct: number
   acumulado: number
@@ -45,7 +46,7 @@ interface ParetoItem {
 }
 
 const NIVEL_COLOR: Record<string, string> = {
-  critico: '#b91c1c', alto: '#ea580c', medio: '#ca8a04', ok: '#16a34a',
+  critico: '#b91c1c', alto: '#ea580c', medio: '#ca8a04', leve: '#2563eb', ok: '#16a34a',
 }
 
 const buildPareto = (cartera: SnapCartera[]): ParetoItem[] => {
@@ -67,11 +68,13 @@ const buildPareto = (cartera: SnapCartera[]): ParetoItem[] => {
       acum += pct
       const nivel = (c.dias_91_180 + c.mas_180_dias) > 0 ? 'critico'
         : c.dias_61_90 > 0 ? 'alto'
-        : c.dias_31_60 > 0 ? 'medio' : 'ok'
+        : c.dias_31_60 > 0 ? 'medio'
+        : c.dias_1_30  > 0 ? 'leve' : 'ok'
       const palabras = c.cliente_nombre.split(' ')
       const corto = palabras.slice(0, 2).join(' ')
       items.push({
         nombre: corto.length > 18 ? corto.slice(0, 17) + '…' : corto,
+        nombreCompleto: c.cliente_nombre,
         deuda: c.total_deuda,
         pct: Math.round(pct),
         acumulado: Math.round(acum),
@@ -89,6 +92,7 @@ const buildPareto = (cartera: SnapCartera[]): ParetoItem[] => {
     const pctOtros = (otrosTotal / total) * 100
     items.push({
       nombre: 'Otros',
+      nombreCompleto: 'Otros',
       deuda: otrosTotal,
       pct: Math.round(pctOtros),
       acumulado: 100,
@@ -105,8 +109,8 @@ const ParetoTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null
   const d = payload[0]?.payload as ParetoItem
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[200px]">
-      <p className="font-bold text-gray-800 mb-1">{label}</p>
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[200px] max-w-[340px]">
+      <p className="font-bold text-gray-800 mb-1 break-words whitespace-normal">{d.nombreCompleto || label}</p>
       <p className="text-slate-700">Deuda: <strong>{fmtCOPShort(d.deuda)}</strong></p>
       <p className="text-blue-600">% del total: <strong>{Math.round(d.pct)}%</strong></p>
       <p className="text-purple-700">Acumulado: <strong>{Math.round(d.acumulado)}%</strong></p>
@@ -214,7 +218,10 @@ const SeccionPareto = ({ cartera, totalCartera }: {
           <span className="w-4 h-3 rounded-sm inline-block bg-[#ca8a04]" /> Medio (31-60d)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-4 h-3 rounded-sm inline-block bg-[#16a34a]" /> Al día
+          <span className="w-4 h-3 rounded-sm inline-block bg-[#2563eb]" /> Leve (1–30d)
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="w-4 h-3 rounded-sm inline-block bg-[#16a34a]" /> Sin mora
         </span>
         <span className="flex items-center gap-1.5 ml-4 border-l border-gray-200 pl-4">
           <svg width="24" height="6"><line x1="0" y1="3" x2="24" y2="3" stroke="#1a1a2e" strokeWidth="2.5" /></svg>
@@ -238,7 +245,7 @@ const SeccionPareto = ({ cartera, totalCartera }: {
                 <th className="px-4 py-3 text-left w-10">#</th>
                 <th className="px-4 py-3 text-left">Cliente</th>
                 <th className="px-4 py-3 text-left">Ciudad</th>
-                <th className="px-4 py-3 text-left">Comercial</th>
+                <th className="px-4 py-3 text-left">Línea(s)</th>
                 <th className="px-4 py-3 text-right">Total deuda</th>
                 <th className="px-4 py-3 text-right">+90d</th>
                 <th className="px-4 py-3 text-center">% participación</th>
@@ -278,269 +285,13 @@ const SeccionPareto = ({ cartera, totalCartera }: {
   )
 }
 
-// ─── Datos de muestra ─────────────────────────────────────────────────────────
-
-const DEMO_DATE = '2026-04-06'
-
-const MOCK_CARTERA: SnapCartera[] = [
-  { id:'d1', fecha_corte:DEMO_DATE, cliente_nit:'890.905.177-3', cliente_nombre:'ESE HOSPITAL LA MARÍA', vigente:80_340_000, dias_1_30:48_500_000, dias_31_60:54_200_000, dias_61_90:71_400_000, dias_91_180:78_600_000, mas_180_dias:45_500_000, total_deuda:378_540_000, ciudad:'Medellín', vendedor:'Carlos Restrepo', linea:'Trauma', responsable_cobro:'Cartera', dias_mora_max:105, ultima_factura:'FV-00949', proxima_fecha_vencimiento:'2026-04-12', convenio:'P001', perfil_cliente:'Cliente Institucional' },
-  { id:'d2', fecha_corte:DEMO_DATE, cliente_nit:'890.902.922-6', cliente_nombre:'FUNDACIÓN HOSPITALARIA SAN VICENTE DE PAUL', vigente:126_580_000, dias_1_30:50_800_000, dias_31_60:52_400_000, dias_61_90:45_800_000, dias_91_180:42_800_000, mas_180_dias:23_820_000, total_deuda:342_200_000, ciudad:'Medellín', vendedor:'Carlos Restrepo', linea:'Columna', responsable_cobro:'Cartera', dias_mora_max:97, ultima_factura:'FV-00951', proxima_fecha_vencimiento:'2026-04-15', convenio:'P001', perfil_cliente:'Cliente Institucional' },
-  { id:'d3', fecha_corte:DEMO_DATE, cliente_nit:'899.999.031-2', cliente_nombre:'HOSPITAL SAN JUAN DE DIOS BOGOTÁ', vigente:75_400_000, dias_1_30:62_300_000, dias_31_60:58_100_000, dias_61_90:52_900_000, dias_91_180:63_400_000, mas_180_dias:0, total_deuda:312_100_000, ciudad:'Bogotá', vendedor:'Andrés Morales', linea:'Trauma', responsable_cobro:'Cartera', dias_mora_max:89, ultima_factura:'FV-00938', proxima_fecha_vencimiento:null, convenio:'P001', perfil_cliente:'Cliente Institucional' },
-  { id:'d4', fecha_corte:DEMO_DATE, cliente_nit:'890.904.996-1', cliente_nombre:'CLÍNICA MEDELLÍN S.A.', vigente:100_330_000, dias_1_30:59_700_000, dias_31_60:74_600_000, dias_61_90:44_900_000, dias_91_180:19_300_000, mas_180_dias:0, total_deuda:298_830_000, ciudad:'Medellín', vendedor:'María González', linea:'Reemplazos', responsable_cobro:'Cartera', dias_mora_max:73, ultima_factura:'FV-00955', proxima_fecha_vencimiento:'2026-04-22', convenio:'', perfil_cliente:'Cliente General' },
-  { id:'d5', fecha_corte:DEMO_DATE, cliente_nit:'891.480.027-9', cliente_nombre:'HOSPITAL UNIVERSITARIO DEL VALLE HUV', vigente:54_300_000, dias_1_30:38_200_000, dias_31_60:45_100_000, dias_61_90:47_300_000, dias_91_180:49_800_000, mas_180_dias:0, total_deuda:234_700_000, ciudad:'Cali', vendedor:'Laura Sánchez', linea:'Trauma', responsable_cobro:'Cartera', dias_mora_max:91, ultima_factura:'FV-00927', proxima_fecha_vencimiento:null, convenio:'P001', perfil_cliente:'Cliente Institucional' },
-  { id:'d6', fecha_corte:DEMO_DATE, cliente_nit:'901.097.473-5', cliente_nombre:'ALIANZA MEDELLÍN ANTIOQUIA EPS S.A.S.', vigente:32_600_000, dias_1_30:21_200_000, dias_31_60:26_500_000, dias_61_90:66_300_000, dias_91_180:83_400_000, mas_180_dias:35_400_000, total_deuda:265_400_000, ciudad:'Medellín', vendedor:'María González', linea:'Columna', responsable_cobro:'Cartera', dias_mora_max:138, ultima_factura:'FV-00803', proxima_fecha_vencimiento:null, convenio:'P001', perfil_cliente:'Cliente Institucional' },
-  { id:'d7', fecha_corte:DEMO_DATE, cliente_nit:'890.903.887-3', cliente_nombre:'CLÍNICA COUNTRY S.A.', vigente:62_400_000, dias_1_30:48_700_000, dias_31_60:67_800_000, dias_61_90:0, dias_91_180:0, mas_180_dias:0, total_deuda:178_900_000, ciudad:'Bogotá', vendedor:'Andrés Morales', linea:'Reemplazos', responsable_cobro:'Cartera', dias_mora_max:47, ultima_factura:'FV-00961', proxima_fecha_vencimiento:'2026-04-19', convenio:'', perfil_cliente:'Cliente General' },
-  { id:'d8', fecha_corte:DEMO_DATE, cliente_nit:'890.100.979-0', cliente_nombre:'CLÍNICA GENERAL DEL NORTE', vigente:45_700_000, dias_1_30:42_300_000, dias_31_60:68_200_000, dias_61_90:0, dias_91_180:0, mas_180_dias:0, total_deuda:156_200_000, ciudad:'Barranquilla', vendedor:'María González', linea:'Trauma', responsable_cobro:'Cartera', dias_mora_max:52, ultima_factura:'FV-00943', proxima_fecha_vencimiento:'2026-04-24', convenio:'', perfil_cliente:'Cliente General' },
-  { id:'d9', fecha_corte:DEMO_DATE, cliente_nit:'890.903.407-2', cliente_nombre:'HOSPITAL PABLO TOBÓN URIBE', vigente:54_800_000, dias_1_30:38_900_000, dias_31_60:47_200_000, dias_61_90:46_400_000, dias_91_180:0, mas_180_dias:0, total_deuda:187_300_000, ciudad:'Medellín', vendedor:'Carlos Restrepo', linea:'Columna', responsable_cobro:'Cartera', dias_mora_max:68, ultima_factura:'FV-00958', proxima_fecha_vencimiento:null, convenio:'IN05', perfil_cliente:'Distribuidor' },
-  { id:'d10', fecha_corte:DEMO_DATE, cliente_nit:'891.180.893-8', cliente_nombre:'ESE HOSPITAL HERNANDO MONCALEANO PERDOMO', vigente:38_600_000, dias_1_30:28_400_000, dias_31_60:22_400_000, dias_61_90:0, dias_91_180:0, mas_180_dias:0, total_deuda:89_400_000, ciudad:'Neiva', vendedor:'Andrés Morales', linea:'Trauma', responsable_cobro:'Cartera', dias_mora_max:43, ultima_factura:'FV-00948', proxima_fecha_vencimiento:'2026-04-17', convenio:'', perfil_cliente:'Cliente General' },
-  { id:'d11', fecha_corte:DEMO_DATE, cliente_nit:'900.141.071-8', cliente_nombre:'CLÍNICA SOMA S.A.S.', vigente:82_300_000, dias_1_30:43_100_000, dias_31_60:20_200_000, dias_61_90:0, dias_91_180:0, mas_180_dias:0, total_deuda:145_600_000, ciudad:'Medellín', vendedor:'Laura Sánchez', linea:'Reemplazos', responsable_cobro:'Cartera', dias_mora_max:38, ultima_factura:'FV-00963', proxima_fecha_vencimiento:null, convenio:'', perfil_cliente:'Cliente General' },
-  { id:'d12', fecha_corte:DEMO_DATE, cliente_nit:'890.981.137-1', cliente_nombre:'CLÍNICA UNIVERSITARIA BOLIVARIANA', vigente:98_700_000, dias_1_30:24_700_000, dias_31_60:0, dias_61_90:0, dias_91_180:0, mas_180_dias:0, total_deuda:123_400_000, ciudad:'Medellín', vendedor:'Laura Sánchez', linea:'Trauma', responsable_cobro:'Cartera', dias_mora_max:24, ultima_factura:'FV-00965', proxima_fecha_vencimiento:null, convenio:'', perfil_cliente:'Cliente General' },
-]
-
-const MOCK_PROXIMOS: ProximoVencimiento[] = [
-  { cliente:'ESE HOSPITAL LA MARÍA',                   cliente_nit:'890.905.177-3', num_doc:'FV-00949', fecha_vencimiento:'2026-04-12', saldo:80_340_000,  dias_para_vencer:6,  vendedor:'Carlos Restrepo' },
-  { cliente:'ESE HOSPITAL HERNANDO MONCALEANO PERDOMO', cliente_nit:'891.180.893-8', num_doc:'FV-00948', fecha_vencimiento:'2026-04-17', saldo:28_400_000,  dias_para_vencer:11, vendedor:'Andrés Morales' },
-  { cliente:'CLÍNICA COUNTRY S.A.',                    cliente_nit:'890.903.887-3', num_doc:'FV-00961', fecha_vencimiento:'2026-04-19', saldo:48_700_000,  dias_para_vencer:13, vendedor:'Andrés Morales' },
-  { cliente:'FUNDACIÓN HOSP. SAN VICENTE DE PAUL',     cliente_nit:'890.902.922-6', num_doc:'FV-00951', fecha_vencimiento:'2026-04-22', saldo:50_800_000,  dias_para_vencer:16, vendedor:'Carlos Restrepo' },
-  { cliente:'CLÍNICA MEDELLÍN S.A.',                   cliente_nit:'890.904.996-1', num_doc:'FV-00955', fecha_vencimiento:'2026-04-24', saldo:59_700_000,  dias_para_vencer:18, vendedor:'María González' },
-  { cliente:'CLÍNICA GENERAL DEL NORTE',               cliente_nit:'890.100.979-0', num_doc:'FV-00943', fecha_vencimiento:'2026-04-24', saldo:42_300_000,  dias_para_vencer:18, vendedor:'María González' },
-]
-
-const _CIU_MED: CiudadAgregada = { ciudad:'Medellín', clientes_count:7, total_deuda:1_741_270_000, vigente:575_650_000, dias_1_30:287_000_000, dias_31_60:275_100_000, dias_61_90:274_800_000, dias_91_mas:328_820_000, total_vencida:1_165_720_000, porcentaje:64.2, clientes:[
-  { cliente_nit:'890.905.177-3', cliente_nombre:'ESE HOSPITAL LA MARÍA',             total_deuda:378_540_000, vigente:80_340_000,  dias_91_180:78_600_000, mas_180_dias:45_500_000, dias_mora_max:105 },
-  { cliente_nit:'890.902.922-6', cliente_nombre:'FUND. HOSP. SAN VICENTE DE PAUL',   total_deuda:342_200_000, vigente:126_580_000, dias_91_180:42_800_000, mas_180_dias:23_820_000, dias_mora_max:97  },
-  { cliente_nit:'901.097.473-5', cliente_nombre:'ALIANZA MEDELLÍN ANTIOQUIA EPS',    total_deuda:265_400_000, vigente:32_600_000,  dias_91_180:83_400_000, mas_180_dias:35_400_000, dias_mora_max:138 },
-  { cliente_nit:'890.904.996-1', cliente_nombre:'CLÍNICA MEDELLÍN S.A.',             total_deuda:298_830_000, vigente:100_330_000, dias_91_180:19_300_000, mas_180_dias:0,          dias_mora_max:73  },
-  { cliente_nit:'890.903.407-2', cliente_nombre:'HOSPITAL PABLO TOBÓN URIBE',        total_deuda:187_300_000, vigente:54_800_000,  dias_91_180:0,          mas_180_dias:0,          dias_mora_max:68  },
-  { cliente_nit:'900.141.071-8', cliente_nombre:'CLÍNICA SOMA S.A.S.',               total_deuda:145_600_000, vigente:82_300_000,  dias_91_180:0,          mas_180_dias:0,          dias_mora_max:38  },
-  { cliente_nit:'890.981.137-1', cliente_nombre:'CLÍNICA UNIVERSITARIA BOLIVARIANA', total_deuda:123_400_000, vigente:98_700_000,  dias_91_180:0,          mas_180_dias:0,          dias_mora_max:24  },
-]}
-
-const MOCK_REGIONES_DATA = {
-  fecha_corte: DEMO_DATE,
-  total_general: 2_712_570_000,
-  regiones: [
-    { ranking:1, departamento:'Antioquia',        clientes_count:7, ciudades_count:1, total_deuda:1_741_270_000, vigente:575_650_000, dias_1_30:287_000_000, dias_31_60:275_100_000, dias_61_90:274_800_000, dias_91_mas:328_820_000, total_vencida:1_165_720_000, mora_90:328_820_000, porcentaje:64.2,
-      ciudades:[_CIU_MED] },
-    { ranking:2, departamento:'Bogotá D.C.',      clientes_count:2, ciudades_count:1, total_deuda:491_000_000,   vigente:137_800_000, dias_1_30:111_000_000, dias_31_60:125_900_000, dias_61_90:52_900_000,  dias_91_mas:63_400_000,  total_vencida:353_200_000,   mora_90:63_400_000,  porcentaje:18.1,
-      ciudades:[{ ciudad:'Bogotá', clientes_count:2, total_deuda:491_000_000, vigente:137_800_000, dias_1_30:111_000_000, dias_31_60:125_900_000, dias_61_90:52_900_000, dias_91_mas:63_400_000, total_vencida:353_200_000, porcentaje:18.1, clientes:[
-        { cliente_nit:'899.999.031-2', cliente_nombre:'HOSPITAL SAN JUAN DE DIOS BOGOTÁ', total_deuda:312_100_000, vigente:75_400_000, dias_91_180:63_400_000, mas_180_dias:0, dias_mora_max:89 },
-        { cliente_nit:'890.903.887-3', cliente_nombre:'CLÍNICA COUNTRY S.A.',             total_deuda:178_900_000, vigente:62_400_000, dias_91_180:0,          mas_180_dias:0, dias_mora_max:47 },
-      ]}] },
-    { ranking:3, departamento:'Valle del Cauca',  clientes_count:1, ciudades_count:1, total_deuda:234_700_000,   vigente:54_300_000,  dias_1_30:38_200_000,  dias_31_60:45_100_000,  dias_61_90:47_300_000,  dias_91_mas:49_800_000,  total_vencida:180_400_000,   mora_90:49_800_000,  porcentaje:8.7,
-      ciudades:[{ ciudad:'Cali', clientes_count:1, total_deuda:234_700_000, vigente:54_300_000, dias_1_30:38_200_000, dias_31_60:45_100_000, dias_61_90:47_300_000, dias_91_mas:49_800_000, total_vencida:180_400_000, porcentaje:8.7, clientes:[
-        { cliente_nit:'891.480.027-9', cliente_nombre:'HOSPITAL UNIVERSITARIO DEL VALLE HUV', total_deuda:234_700_000, vigente:54_300_000, dias_91_180:49_800_000, mas_180_dias:0, dias_mora_max:91 },
-      ]}] },
-    { ranking:4, departamento:'Atlántico',        clientes_count:1, ciudades_count:1, total_deuda:156_200_000,   vigente:45_700_000,  dias_1_30:42_300_000,  dias_31_60:68_200_000,  dias_61_90:0,           dias_91_mas:0,           total_vencida:110_500_000,   mora_90:0,           porcentaje:5.8,
-      ciudades:[{ ciudad:'Barranquilla', clientes_count:1, total_deuda:156_200_000, vigente:45_700_000, dias_1_30:42_300_000, dias_31_60:68_200_000, dias_61_90:0, dias_91_mas:0, total_vencida:110_500_000, porcentaje:5.8, clientes:[
-        { cliente_nit:'890.100.979-0', cliente_nombre:'CLÍNICA GENERAL DEL NORTE', total_deuda:156_200_000, vigente:45_700_000, dias_91_180:0, mas_180_dias:0, dias_mora_max:52 },
-      ]}] },
-    { ranking:5, departamento:'Huila',            clientes_count:1, ciudades_count:1, total_deuda:89_400_000,    vigente:38_600_000,  dias_1_30:28_400_000,  dias_31_60:22_400_000,  dias_61_90:0,           dias_91_mas:0,           total_vencida:50_800_000,    mora_90:0,           porcentaje:3.3,
-      ciudades:[{ ciudad:'Neiva', clientes_count:1, total_deuda:89_400_000, vigente:38_600_000, dias_1_30:28_400_000, dias_31_60:22_400_000, dias_61_90:0, dias_91_mas:0, total_vencida:50_800_000, porcentaje:3.3, clientes:[
-        { cliente_nit:'891.180.893-8', cliente_nombre:'ESE HOSPITAL HERNANDO MONCALEANO PERDOMO', total_deuda:89_400_000, vigente:38_600_000, dias_91_180:0, mas_180_dias:0, dias_mora_max:43 },
-      ]}] },
-  ] as RegionAgregada[],
-}
-
-const MOCK_COMERCIALES_DATA = {
-  fecha_corte: DEMO_DATE,
-  total_general: 2_712_570_000,
-  comerciales: [
-    { vendedor:'Carlos Restrepo', clientes_count:3, total_deuda:908_040_000, vigente:261_520_000, dias_1_30:138_200_000, dias_31_60:163_800_000, dias_61_90:163_600_000, dias_91_mas:180_920_000, total_vencida:646_520_000, porcentaje:33.5, clientes:[
-      { cliente_nit:'890.905.177-3', cliente_nombre:'ESE HOSPITAL LA MARÍA',           total_deuda:378_540_000, vigente:80_340_000,  dias_91_180:78_600_000, mas_180_dias:45_500_000, dias_mora_max:105, ciudad:'Medellín' },
-      { cliente_nit:'890.902.922-6', cliente_nombre:'FUND. HOSP. SAN VICENTE DE PAUL', total_deuda:342_200_000, vigente:126_580_000, dias_91_180:42_800_000, mas_180_dias:23_820_000, dias_mora_max:97,  ciudad:'Medellín' },
-      { cliente_nit:'890.903.407-2', cliente_nombre:'HOSPITAL PABLO TOBÓN URIBE',      total_deuda:187_300_000, vigente:54_800_000,  dias_91_180:0,          mas_180_dias:0,          dias_mora_max:68,  ciudad:'Medellín' },
-    ]},
-    { vendedor:'María González', clientes_count:3, total_deuda:720_430_000, vigente:178_630_000, dias_1_30:123_200_000, dias_31_60:169_300_000, dias_61_90:111_200_000, dias_91_mas:138_100_000, total_vencida:541_800_000, porcentaje:26.6, clientes:[
-      { cliente_nit:'890.904.996-1', cliente_nombre:'CLÍNICA MEDELLÍN S.A.',      total_deuda:298_830_000, vigente:100_330_000, dias_91_180:19_300_000, mas_180_dias:0,          dias_mora_max:73,  ciudad:'Medellín'     },
-      { cliente_nit:'901.097.473-5', cliente_nombre:'ALIANZA MEDELLÍN ANTIOQUIA', total_deuda:265_400_000, vigente:32_600_000,  dias_91_180:83_400_000, mas_180_dias:35_400_000, dias_mora_max:138, ciudad:'Medellín'     },
-      { cliente_nit:'890.100.979-0', cliente_nombre:'CLÍNICA GENERAL DEL NORTE',  total_deuda:156_200_000, vigente:45_700_000,  dias_91_180:0,          mas_180_dias:0,          dias_mora_max:52,  ciudad:'Barranquilla' },
-    ]},
-    { vendedor:'Andrés Morales', clientes_count:3, total_deuda:580_400_000, vigente:152_600_000, dias_1_30:119_100_000, dias_31_60:108_900_000, dias_61_90:52_900_000, dias_91_mas:63_400_000, total_vencida:344_300_000, porcentaje:21.4, clientes:[
-      { cliente_nit:'899.999.031-2', cliente_nombre:'HOSPITAL SAN JUAN DE DIOS BOGOTÁ',        total_deuda:312_100_000, vigente:75_400_000, dias_91_180:63_400_000, mas_180_dias:0, dias_mora_max:89, ciudad:'Bogotá' },
-      { cliente_nit:'890.903.887-3', cliente_nombre:'CLÍNICA COUNTRY S.A.',                     total_deuda:178_900_000, vigente:62_400_000, dias_91_180:0,          mas_180_dias:0, dias_mora_max:47, ciudad:'Bogotá' },
-      { cliente_nit:'891.180.893-8', cliente_nombre:'ESE HOSPITAL HERNANDO MONCALEANO PERDOMO', total_deuda:89_400_000,  vigente:38_600_000, dias_91_180:0,          mas_180_dias:0, dias_mora_max:43, ciudad:'Neiva'  },
-    ]},
-    { vendedor:'Laura Sánchez', clientes_count:3, total_deuda:503_700_000, vigente:235_300_000, dias_1_30:110_200_000, dias_31_60:67_300_000, dias_61_90:47_300_000, dias_91_mas:49_800_000, total_vencida:274_600_000, porcentaje:18.6, clientes:[
-      { cliente_nit:'891.480.027-9', cliente_nombre:'HOSPITAL UNIVERSITARIO DEL VALLE HUV', total_deuda:234_700_000, vigente:54_300_000,  dias_91_180:49_800_000, mas_180_dias:0, dias_mora_max:91, ciudad:'Cali'     },
-      { cliente_nit:'900.141.071-8', cliente_nombre:'CLÍNICA SOMA S.A.S.',                  total_deuda:145_600_000, vigente:82_300_000,  dias_91_180:0,          mas_180_dias:0, dias_mora_max:38, ciudad:'Medellín' },
-      { cliente_nit:'890.981.137-1', cliente_nombre:'CLÍNICA UNIVERSITARIA BOLIVARIANA',    total_deuda:123_400_000, vigente:98_700_000,  dias_91_180:0,          mas_180_dias:0, dias_mora_max:24, ciudad:'Medellín' },
-    ]},
-  ] as VendedorAgregado[],
-}
-
-const MOCK_FACTURAS: Record<string, Factura[]> = {
-  '890.905.177-3': [
-    { num_doc:'FV-00782', fecha_emision:'2025-08-24', fecha_vencimiento:'2025-10-23', dias_vencida:165, saldo:45_500_000 },
-    { num_doc:'FV-00836', fecha_emision:'2025-10-07', fecha_vencimiento:'2025-12-06', dias_vencida:121, saldo:78_600_000 },
-    { num_doc:'FV-00856', fecha_emision:'2025-11-22', fecha_vencimiento:'2026-01-21', dias_vencida:75,  saldo:71_400_000 },
-    { num_doc:'FV-00889', fecha_emision:'2025-12-21', fecha_vencimiento:'2026-02-19', dias_vencida:46,  saldo:54_200_000 },
-    { num_doc:'FV-00921', fecha_emision:'2026-01-08', fecha_vencimiento:'2026-03-09', dias_vencida:28,  saldo:48_500_000 },
-    { num_doc:'FV-00949', fecha_emision:'2026-02-11', fecha_vencimiento:'2026-04-12', dias_vencida:-6,  saldo:80_340_000 },
-  ],
-  '890.902.922-6': [
-    { num_doc:'FV-00798', fecha_emision:'2025-08-14', fecha_vencimiento:'2025-10-13', dias_vencida:175, saldo:23_820_000 },
-    { num_doc:'FV-00829', fecha_emision:'2025-10-28', fecha_vencimiento:'2025-12-27', dias_vencida:100, saldo:42_800_000 },
-    { num_doc:'FV-00878', fecha_emision:'2025-11-22', fecha_vencimiento:'2026-01-21', dias_vencida:75,  saldo:45_800_000 },
-    { num_doc:'FV-00902', fecha_emision:'2025-12-21', fecha_vencimiento:'2026-02-19', dias_vencida:46,  saldo:52_400_000 },
-    { num_doc:'FV-00925', fecha_emision:'2026-01-12', fecha_vencimiento:'2026-03-13', dias_vencida:24,  saldo:50_800_000 },
-    { num_doc:'FV-00951', fecha_emision:'2026-02-14', fecha_vencimiento:'2026-04-15', dias_vencida:-9,  saldo:126_580_000 },
-  ],
-  '899.999.031-2': [
-    { num_doc:'FV-00831', fecha_emision:'2025-10-07', fecha_vencimiento:'2025-12-06', dias_vencida:121, saldo:63_400_000 },
-    { num_doc:'FV-00872', fecha_emision:'2025-11-22', fecha_vencimiento:'2026-01-21', dias_vencida:75,  saldo:52_900_000 },
-    { num_doc:'FV-00899', fecha_emision:'2025-12-22', fecha_vencimiento:'2026-02-20', dias_vencida:45,  saldo:58_100_000 },
-    { num_doc:'FV-00938', fecha_emision:'2026-01-15', fecha_vencimiento:'2026-03-16', dias_vencida:21,  saldo:62_300_000 },
-    { num_doc:'FV-00962', fecha_emision:'2026-02-19', fecha_vencimiento:'2026-04-20', dias_vencida:-14, saldo:75_400_000 },
-  ],
-  '890.904.996-1': [
-    { num_doc:'FV-00848', fecha_emision:'2025-10-28', fecha_vencimiento:'2025-12-27', dias_vencida:100, saldo:19_300_000 },
-    { num_doc:'FV-00885', fecha_emision:'2025-12-02', fecha_vencimiento:'2026-01-31', dias_vencida:65,  saldo:44_900_000 },
-    { num_doc:'FV-00910', fecha_emision:'2025-12-27', fecha_vencimiento:'2026-02-25', dias_vencida:40,  saldo:74_600_000 },
-    { num_doc:'FV-00929', fecha_emision:'2026-01-20', fecha_vencimiento:'2026-03-21', dias_vencida:16,  saldo:59_700_000 },
-    { num_doc:'FV-00955', fecha_emision:'2026-02-21', fecha_vencimiento:'2026-04-22', dias_vencida:-16, saldo:100_330_000 },
-  ],
-  '891.480.027-9': [
-    { num_doc:'FV-00839', fecha_emision:'2025-10-21', fecha_vencimiento:'2025-12-20', dias_vencida:107, saldo:49_800_000 },
-    { num_doc:'FV-00876', fecha_emision:'2025-11-22', fecha_vencimiento:'2026-01-21', dias_vencida:75,  saldo:47_300_000 },
-    { num_doc:'FV-00903', fecha_emision:'2025-12-22', fecha_vencimiento:'2026-02-20', dias_vencida:45,  saldo:45_100_000 },
-    { num_doc:'FV-00927', fecha_emision:'2026-01-19', fecha_vencimiento:'2026-03-20', dias_vencida:17,  saldo:38_200_000 },
-    { num_doc:'FV-00957', fecha_emision:'2026-02-22', fecha_vencimiento:'2026-04-23', dias_vencida:-17, saldo:54_300_000 },
-  ],
-  '901.097.473-5': [
-    { num_doc:'FV-00762', fecha_emision:'2025-08-07', fecha_vencimiento:'2025-10-06', dias_vencida:182, saldo:35_400_000 },
-    { num_doc:'FV-00793', fecha_emision:'2025-10-14', fecha_vencimiento:'2025-12-13', dias_vencida:114, saldo:83_400_000 },
-    { num_doc:'FV-00821', fecha_emision:'2025-12-02', fecha_vencimiento:'2026-01-31', dias_vencida:65,  saldo:66_300_000 },
-    { num_doc:'FV-00854', fecha_emision:'2025-12-27', fecha_vencimiento:'2026-02-25', dias_vencida:40,  saldo:26_500_000 },
-    { num_doc:'FV-00897', fecha_emision:'2026-01-20', fecha_vencimiento:'2026-03-21', dias_vencida:16,  saldo:21_200_000 },
-    { num_doc:'FV-00930', fecha_emision:'2026-02-15', fecha_vencimiento:'2026-04-16', dias_vencida:-10, saldo:32_600_000 },
-  ],
-  '890.903.887-3': [
-    { num_doc:'FV-00897', fecha_emision:'2025-12-22', fecha_vencimiento:'2026-02-20', dias_vencida:45,  saldo:67_800_000 },
-    { num_doc:'FV-00924', fecha_emision:'2026-01-19', fecha_vencimiento:'2026-03-20', dias_vencida:17,  saldo:48_700_000 },
-    { num_doc:'FV-00961', fecha_emision:'2026-02-18', fecha_vencimiento:'2026-04-19', dias_vencida:-13, saldo:62_400_000 },
-  ],
-  '890.100.979-0': [
-    { num_doc:'FV-00906', fecha_emision:'2025-12-21', fecha_vencimiento:'2026-02-19', dias_vencida:46,  saldo:68_200_000 },
-    { num_doc:'FV-00943', fecha_emision:'2026-01-25', fecha_vencimiento:'2026-03-26', dias_vencida:11,  saldo:42_300_000 },
-    { num_doc:'FV-00964', fecha_emision:'2026-02-23', fecha_vencimiento:'2026-04-24', dias_vencida:-18, saldo:45_700_000 },
-  ],
-  '890.903.407-2': [
-    { num_doc:'FV-00879', fecha_emision:'2025-12-02', fecha_vencimiento:'2026-01-31', dias_vencida:65,  saldo:46_400_000 },
-    { num_doc:'FV-00908', fecha_emision:'2025-12-27', fecha_vencimiento:'2026-02-25', dias_vencida:40,  saldo:47_200_000 },
-    { num_doc:'FV-00933', fecha_emision:'2026-01-25', fecha_vencimiento:'2026-03-26', dias_vencida:11,  saldo:38_900_000 },
-    { num_doc:'FV-00958', fecha_emision:'2026-02-22', fecha_vencimiento:'2026-04-23', dias_vencida:-17, saldo:54_800_000 },
-  ],
-  '891.180.893-8': [
-    { num_doc:'FV-00916', fecha_emision:'2025-12-22', fecha_vencimiento:'2026-02-20', dias_vencida:45,  saldo:22_400_000 },
-    { num_doc:'FV-00948', fecha_emision:'2026-01-26', fecha_vencimiento:'2026-03-27', dias_vencida:10,  saldo:28_400_000 },
-    { num_doc:'FV-00966', fecha_emision:'2026-02-17', fecha_vencimiento:'2026-04-18', dias_vencida:-12, saldo:38_600_000 },
-  ],
-  '900.141.071-8': [
-    { num_doc:'FV-00918', fecha_emision:'2025-12-22', fecha_vencimiento:'2026-02-20', dias_vencida:45,  saldo:20_200_000 },
-    { num_doc:'FV-00946', fecha_emision:'2026-01-25', fecha_vencimiento:'2026-03-26', dias_vencida:11,  saldo:43_100_000 },
-    { num_doc:'FV-00963', fecha_emision:'2026-02-26', fecha_vencimiento:'2026-04-27', dias_vencida:-21, saldo:82_300_000 },
-  ],
-  '890.981.137-1': [
-    { num_doc:'FV-00952', fecha_emision:'2026-01-21', fecha_vencimiento:'2026-03-22', dias_vencida:15,  saldo:24_700_000 },
-    { num_doc:'FV-00965', fecha_emision:'2026-02-28', fecha_vencimiento:'2026-04-29', dias_vencida:-23, saldo:98_700_000 },
-  ],
-}
-
-// ─── Facturas de muestra (modo demo) ─────────────────────────────────────────
-
-const FilaFacturasMock = ({ nit, cols }: { nit: string; cols: number }) => {
-  const facturas = MOCK_FACTURAS[nit] ?? []
-  const totalSaldo = facturas.reduce((s, f) => s + f.saldo, 0)
-  const vencidas   = facturas.filter(f => f.dias_vencida > 0)
-  const porVencer  = facturas.filter(f => f.dias_vencida <= 0)
-
-  return (
-    <tr>
-      <td colSpan={cols} className="px-4 py-2">
-        <div className="bg-slate-50 border border-slate-200 rounded-xl mx-8 mb-3 overflow-hidden">
-          <div className="px-5 py-3 bg-slate-100 border-b border-slate-200 flex items-center justify-between">
-            <span className="font-bold text-slate-700 text-sm">FACTURAS PENDIENTES — DE LA MÁS ANTIGUA A LA MÁS RECIENTE</span>
-            <span className="text-xs text-slate-500">{facturas.length} facturas · Total: <strong className="text-slate-700">{fmt(totalSaldo)}</strong></span>
-          </div>
-          {facturas.length === 0 && <p className="px-5 py-4 text-sm text-gray-400">Sin facturas pendientes.</p>}
-          {vencidas.length > 0 && (<>
-            <div className="px-5 py-1.5 bg-red-50 border-b border-red-100">
-              <span className="text-xs font-semibold text-red-600 uppercase tracking-wide">Facturas vencidas ({vencidas.length})</span>
-            </div>
-            <table className="w-full text-sm">
-              <thead className="bg-slate-200 text-slate-700">
-                <tr>
-                  <th className="px-4 py-2 text-left font-semibold">Documento</th>
-                  <th className="px-4 py-2 text-left font-semibold">Emisión</th>
-                  <th className="px-4 py-2 text-left font-semibold">Vencimiento</th>
-                  <th className="px-4 py-2 text-left font-semibold">Antigüedad</th>
-                  <th className="px-4 py-2 text-right font-semibold">Saldo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vencidas.map((f, i) => {
-                  const cls = f.dias_vencida > 120 ? 'text-red-900 font-extrabold' : f.dias_vencida > 90 ? 'text-red-800 font-bold' : f.dias_vencida > 60 ? 'text-red-600 font-semibold' : f.dias_vencida > 30 ? 'text-orange-600 font-semibold' : 'text-yellow-700'
-                  const bgCls = f.dias_vencida > 90 ? 'bg-red-50' : f.dias_vencida > 60 ? 'bg-orange-50' : f.dias_vencida > 30 ? 'bg-yellow-50' : 'bg-white'
-                  return (
-                    <tr key={i} className={`border-t border-slate-200 hover:brightness-95 ${bgCls}`}>
-                      <td className="px-4 py-2.5 font-mono text-sm font-semibold text-slate-700">{f.num_doc}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{f.fecha_emision}</td>
-                      <td className="px-4 py-2.5 text-slate-500">{f.fecha_vencimiento}</td>
-                      <td className={`px-4 py-2.5 ${cls}`}>Vencida hace {f.dias_vencida} día{f.dias_vencida !== 1 ? 's' : ''}</td>
-                      <td className="px-4 py-2.5 text-right font-bold text-slate-800">{fmt(f.saldo)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </>)}
-          {porVencer.length > 0 && (<>
-            <div className="px-5 py-1.5 bg-amber-50 border-t border-b border-amber-200">
-              <span className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Próximas a vencer ({porVencer.length})</span>
-            </div>
-            <table className="w-full text-sm">
-              <thead className="bg-amber-100 text-amber-800">
-                <tr>
-                  <th className="px-4 py-2 text-left font-semibold">Documento</th>
-                  <th className="px-4 py-2 text-left font-semibold">Emisión</th>
-                  <th className="px-4 py-2 text-left font-semibold">Vencimiento</th>
-                  <th className="px-4 py-2 text-left font-semibold">Tiempo restante</th>
-                  <th className="px-4 py-2 text-right font-semibold">Saldo</th>
-                </tr>
-              </thead>
-              <tbody>
-                {porVencer.map((f, i) => {
-                  const dias = Math.abs(f.dias_vencida)
-                  return (
-                    <tr key={i} className="border-t border-amber-200 bg-amber-50 hover:bg-amber-100">
-                      <td className="px-4 py-2.5 font-mono text-sm font-semibold text-amber-900">{f.num_doc}</td>
-                      <td className="px-4 py-2.5 text-amber-700">{f.fecha_emision}</td>
-                      <td className="px-4 py-2.5 text-amber-700">{f.fecha_vencimiento}</td>
-                      <td className="px-4 py-2.5 text-amber-800 font-semibold">Vence en {dias} día{dias !== 1 ? 's' : ''}</td>
-                      <td className="px-4 py-2.5 text-right font-bold text-amber-900">{fmt(f.saldo)}</td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </>)}
-          <div className="bg-slate-100 border-t-2 border-slate-300 px-5 py-2 flex justify-between items-center">
-            <span className="text-sm font-bold text-slate-600">Total vencido: <span className="text-red-700">{fmt(vencidas.reduce((s,f)=>s+f.saldo,0))}</span></span>
-            <span className="text-sm font-bold text-slate-700">Total: {fmt(totalSaldo)}</span>
-          </div>
-        </div>
-      </td>
-    </tr>
-  )
-}
-
 // ─── Riesgo ────────────────────────────────────────────────────────────────────
 
-const nivelRiesgo = (c: Pick<SnapCartera, 'dias_91_180' | 'mas_180_dias' | 'dias_61_90' | 'dias_31_60'>) => {
+const nivelRiesgo = (c: Pick<SnapCartera, 'dias_91_180' | 'mas_180_dias' | 'dias_61_90' | 'dias_31_60' | 'dias_1_30'>) => {
   if (c.dias_91_180 + c.mas_180_dias > 0) return 'critico'
   if (c.dias_61_90 > 0)                   return 'alto'
   if (c.dias_31_60 > 0)                   return 'medio'
+  if (c.dias_1_30  > 0)                   return 'leve'
   return 'ok'
 }
 
@@ -548,6 +299,7 @@ const badgeCls = (nivel: string) => ({
   critico: 'bg-red-100 text-red-800 border border-red-300',
   alto:    'bg-orange-100 text-orange-800 border border-orange-300',
   medio:   'bg-yellow-100 text-yellow-800 border border-yellow-300',
+  leve:    'bg-blue-100 text-blue-800 border border-blue-300',
   ok:      'bg-green-100 text-green-800 border border-green-300',
 }[nivel] ?? 'bg-gray-100 text-gray-600 border border-gray-300')
 
@@ -555,6 +307,7 @@ const rowBgCls = (nivel: string) => ({
   critico: 'bg-red-50',
   alto:    'bg-orange-50',
   medio:   'bg-yellow-50',
+  leve:    'bg-blue-50',
   ok:      'bg-white',
 }[nivel] ?? 'bg-white')
 
@@ -694,23 +447,23 @@ const PaginationControls = ({
 }) => {
   if (pages <= 1) return null
   return (
-    <div className="flex items-center justify-end gap-2 mt-4">
+    <div className="flex items-center justify-end gap-3 mt-5">
       <button
         onClick={() => onChange(Math.max(1, page - 1))}
         disabled={page <= 1}
-        className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 disabled:opacity-40"
+        className="px-5 py-2.5 rounded-xl border border-gray-300 text-base font-bold text-gray-700 disabled:opacity-40 hover:bg-gray-50 transition-colors"
       >
-        Anterior
+        ← Anterior
       </button>
-      <span className="text-sm font-semibold text-gray-600">
+      <span className="text-base font-semibold text-gray-600 px-2">
         Página {page} de {pages}
       </span>
       <button
         onClick={() => onChange(Math.min(pages, page + 1))}
         disabled={page >= pages}
-        className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 disabled:opacity-40"
+        className="px-5 py-2.5 rounded-xl border border-gray-300 text-base font-bold text-gray-700 disabled:opacity-40 hover:bg-gray-50 transition-colors"
       >
-        Siguiente
+        Siguiente →
       </button>
     </div>
   )
@@ -732,18 +485,18 @@ const PillDias = ({ dias }: { dias: number }) => {
 const BuscarInput = ({ value, onChange, placeholder = 'Buscar por nombre o NIT...' }: {
   value: string; onChange: (v: string) => void; placeholder?: string
 }) => (
-  <div className="relative mb-4 max-w-sm">
-    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+  <div className="relative mb-4 max-w-lg">
+    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400 pointer-events-none" />
     <input
       value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full pl-9 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+      className="w-full pl-10 pr-10 py-3 border border-gray-300 rounded-xl text-base bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
     />
     {value && (
       <button
         onClick={() => onChange('')}
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-lg leading-none"
+        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xl leading-none font-bold"
       >×</button>
     )}
   </div>
@@ -779,11 +532,14 @@ export const CarteraInforme = () => {
   const [busEdades,      setBusEdades]      = useState('')
   const [busRegiones,    setBusRegiones]    = useState('')
   const [busComerciales, setBusComerciales] = useState('')
+  // Orden
+  const [ordenEdades,   setOrdenEdades]   = useState<'az' | 'deuda'>('az')
+  const [ordenLineas,   setOrdenLineas]   = useState<'az' | 'deuda'>('az')
 
   const carteraQ  = useQuery({ queryKey: ['cartera', filtro],     queryFn: () => getCartera(filtro) })
   const proximosQ = useQuery({ queryKey: ['proximos'],             queryFn: getProximosVencimientos })
   const regionesQ = useQuery({ queryKey: ['regiones', filtro],    queryFn: () => getCarteraRegiones(filtro) })
-  const comercQ   = useQuery({ queryKey: ['comerciales', filtro], queryFn: () => getCarteraComerciales(filtro) })
+  const comercQ   = useQuery({ queryKey: ['comerciales', filtro], queryFn: () => getCarteraLineas(filtro) })
 
   const toggleSet = (set: Set<string>, key: string) => {
     const s = new Set(set)
@@ -804,13 +560,14 @@ export const CarteraInforme = () => {
     setPageRegiones(1)
     setPageComerciales(1)
     setBusEdades(''); setBusRegiones(''); setBusComerciales('')
+    setOrdenEdades('az'); setOrdenLineas('az')
   }
 
   // Solo datos reales
   const cartera    = carteraQ.data ?? []
   const proximos   = proximosQ.data?.proximos_vencimientos ?? []
   const regiones   = regionesQ.data?.regiones ?? []
-  const comerciales= comercQ.data?.comerciales ?? []
+  const comerciales= comercQ.data?.lineas ?? comercQ.data?.comerciales ?? []
 
   // KPIs
   const totalCartera = cartera.reduce((s, c) => s + c.total_deuda, 0)
@@ -820,9 +577,12 @@ export const CarteraInforme = () => {
   const nCriticos    = cartera.filter(c => c.dias_91_180 + c.mas_180_dias > 0).length
   const fechaCorte = cartera[0]?.fecha_corte ?? null
 
-  // Cartera por edades — con búsqueda y filtro riesgo
+  // Cartera por edades — con búsqueda, filtro riesgo y orden
   const carteraFiltradaRiesgo = cartera.filter(c => filtroRiesgo === 'todos' || nivelRiesgo(c) === filtroRiesgo)
-  const carteraFiltrada = filtrarPorBusqueda(carteraFiltradaRiesgo, busEdades)
+  const carteraFiltradaBus = filtrarPorBusqueda(carteraFiltradaRiesgo, busEdades)
+  const carteraFiltrada = ordenEdades === 'az'
+    ? [...carteraFiltradaBus].sort((a, b) => (a.cliente_nombre ?? '').localeCompare(b.cliente_nombre ?? '', 'es'))
+    : [...carteraFiltradaBus].sort((a, b) => b.total_deuda - a.total_deuda)
   const carteraEdadesPages = totalPages(carteraFiltrada.length)
   const carteraEdadesPageItems = paginate(carteraFiltrada, Math.min(pageCarteraEdades, carteraEdadesPages))
 
@@ -830,21 +590,40 @@ export const CarteraInforme = () => {
   const proximosPages = totalPages(proximos.length)
   const proximosPageItems = paginate(proximos, Math.min(pageProximos, proximosPages))
 
-  // Regiones — con búsqueda por departamento
-  const regionesFiltradas = busRegiones.trim()
-    ? regiones.filter(r => r.departamento.toLowerCase().includes(busRegiones.toLowerCase()))
-    : regiones
+  // Regiones — búsqueda por departamento, ciudad o institución
+  const regionesFiltradas = (() => {
+    const q = busRegiones.trim().toLowerCase()
+    if (!q) return regiones
+    return regiones.filter(reg =>
+      reg.departamento.toLowerCase().includes(q) ||
+      reg.ciudades?.some(c =>
+        c.ciudad.toLowerCase().includes(q) ||
+        c.clientes?.some(cl =>
+          cl.cliente_nombre.toLowerCase().includes(q) ||
+          cl.cliente_nit.toLowerCase().includes(q)
+        )
+      )
+    )
+  })()
   const regionesPages = totalPages(regionesFiltradas.length)
   const regionesPageItems = paginate(regionesFiltradas, Math.min(pageRegiones, regionesPages))
 
-  // Comerciales — con búsqueda por nombre
-  const comercialesFiltrados = busComerciales.trim()
-    ? comerciales.filter(c => c.vendedor.toLowerCase().includes(busComerciales.toLowerCase()))
+  // Comerciales — con búsqueda por nombre o cod_vend, y orden
+  const comercialesFiltradosBus = busComerciales.trim()
+    ? comerciales.filter(c =>
+        c.vendedor.toLowerCase().includes(busComerciales.toLowerCase()) ||
+        c.linea?.toLowerCase().includes(busComerciales.toLowerCase()) ||
+        c.cod_vend?.toLowerCase().includes(busComerciales.toLowerCase())
+      )
     : comerciales
+  const comercialesFiltrados = ordenLineas === 'az'
+    ? [...comercialesFiltradosBus].sort((a, b) => (a.linea ?? a.vendedor ?? '').localeCompare(b.linea ?? b.vendedor ?? '', 'es'))
+    : [...comercialesFiltradosBus].sort((a, b) => b.total_deuda - a.total_deuda)
   const comercialesPages = totalPages(comercialesFiltrados.length)
   const comercialesPageItems = paginate(comercialesFiltrados, Math.min(pageComerciales, comercialesPages))
 
   const cargando = carteraQ.isLoading || proximosQ.isLoading || regionesQ.isLoading || comercQ.isLoading
+  const actualizandoFiltros = carteraQ.isFetching || proximosQ.isFetching || regionesQ.isFetching || comercQ.isFetching
   const dataError =
     (carteraQ.error as AxiosError<{ message?: string; error?: string }>) ||
     (proximosQ.error as AxiosError<{ message?: string; error?: string }>) ||
@@ -885,14 +664,17 @@ export const CarteraInforme = () => {
             />
             <button
               onClick={aplicarFiltro}
-              className="flex items-center gap-1.5 bg-white text-slate-800 font-bold px-4 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-sm"
+              disabled={actualizandoFiltros}
+              className="flex items-center gap-1.5 bg-white text-slate-800 font-bold px-4 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <Search className="h-4 w-4" /> Buscar
+              {actualizandoFiltros ? <Spinner className="h-4 w-4 text-slate-700" /> : <Search className="h-4 w-4" />}
+              {actualizandoFiltros ? 'Actualizando…' : 'Buscar'}
             </button>
           </div>
 
-          <div className="text-xs text-white/70 ml-2">
-            Datos en línea
+          <div className="text-xs text-white/70 ml-2 flex items-center gap-2">
+            {actualizandoFiltros && <Spinner className="h-3.5 w-3.5 text-white" />}
+            {actualizandoFiltros ? 'Actualizando datos…' : 'Datos en línea'}
           </div>
         </div>
       </div>
@@ -965,7 +747,8 @@ export const CarteraInforme = () => {
                 { key: 'critico', label: 'Críticos', cls: 'bg-red-100 text-red-800 border border-red-300',        act: 'bg-red-600 text-white ring-2 ring-red-400' },
                 { key: 'alto',    label: 'Altos',    cls: 'bg-orange-100 text-orange-800 border border-orange-300',act: 'bg-orange-500 text-white ring-2 ring-orange-400' },
                 { key: 'medio',   label: 'Medios',   cls: 'bg-yellow-100 text-yellow-800 border border-yellow-300',act: 'bg-yellow-500 text-white ring-2 ring-yellow-400' },
-                { key: 'ok',      label: 'Al día',   cls: 'bg-green-100 text-green-800 border border-green-300',  act: 'bg-green-600 text-white ring-2 ring-green-400' },
+                { key: 'leve',    label: '1–30d',    cls: 'bg-blue-100 text-blue-800 border border-blue-300',     act: 'bg-blue-600 text-white ring-2 ring-blue-400' },
+                { key: 'ok',      label: 'Sin mora', cls: 'bg-green-100 text-green-800 border border-green-300',  act: 'bg-green-600 text-white ring-2 ring-green-400' },
               ].map(p => (
                 <button
                   key={p.key}
@@ -982,21 +765,32 @@ export const CarteraInforme = () => {
               ))}
             </div>
 
+            {/* Orden */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm text-gray-600 font-semibold">Ordenar:</span>
+              {(['az', 'deuda'] as const).map(o => (
+                <button
+                  key={o}
+                  onClick={() => { setOrdenEdades(o); setPageCarteraEdades(1) }}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${ordenEdades === o ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+                >
+                  {o === 'az' ? 'A–Z' : 'Mayor deuda'}
+                </button>
+              ))}
+            </div>
+
             <div className="overflow-x-auto">
-              <table className="w-full text-base">
+              <table className="w-full text-base table-fixed">
                 <thead className="bg-[#1a1a2e] text-white text-sm">
                   <tr>
-                    <th className="px-4 py-3 text-left w-8">#</th>
-                    <th className="px-4 py-3 text-left">Cliente</th>
-                    <th className="px-4 py-3 text-left">Ciudad</th>
-                    <th className="px-4 py-3 text-left">Comercial</th>
-                    <th className="px-4 py-3 text-right">Total</th>
-                    <th className="px-4 py-3 text-right">Vigente</th>
-                    <th className="px-4 py-3 text-right">1–30d</th>
-                    <th className="px-4 py-3 text-right">31–60d</th>
-                    <th className="px-4 py-3 text-right">61–90d</th>
-                    <th className="px-4 py-3 text-right">+90d</th>
-                    <th className="px-4 py-3 text-center">Estado</th>
+                    <th className="px-3 py-3 text-left w-10">#</th>
+                    <th className="px-3 py-3 text-left w-[20%]">Cliente</th>
+                    <th className="px-3 py-3 text-left w-[11%]">Ciudad</th>
+                    <th className="px-3 py-3 text-left w-[29%]">Línea(s)</th>
+                    <th className="px-3 py-3 text-right w-[10%]">Total</th>
+                    <th className="px-3 py-3 text-right w-[10%]">Vencida</th>
+                    <th className="px-3 py-3 text-right w-[10%]">+90d</th>
+                    <th className="px-3 py-3 text-center w-[10%]">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1004,39 +798,39 @@ export const CarteraInforme = () => {
                     const nivel  = nivelRiesgo(c)
                     const isOpen = expClientes.has(c.cliente_nit)
                     const mas90  = c.dias_91_180 + c.mas_180_dias
+                    const vencida = c.dias_1_30 + c.dias_31_60 + c.dias_61_90 + mas90
                     return (
                       <Fragment key={c.id}>
                         <tr
                           onClick={() => setExpClientes(prev => toggleSet(prev, c.cliente_nit))}
                           className={`${rowBgCls(nivel)} hover:bg-blue-50 cursor-pointer border-b border-gray-100 transition-colors`}
                         >
-                           <td className="px-4 py-4 text-gray-400 font-mono text-sm">{(Math.min(pageCarteraEdades, carteraEdadesPages) - 1) * PAGE_SIZE + idx + 1}</td>
-                          <td className="px-4 py-4 font-semibold">
+                           <td className="px-3 py-4 text-gray-400 font-mono text-sm">{(Math.min(pageCarteraEdades, carteraEdadesPages) - 1) * PAGE_SIZE + idx + 1}</td>
+                          <td className="px-3 py-4 font-semibold align-top">
                             <div className="flex items-center gap-2">
                               {isOpen
                                 ? <ChevronDown className="h-5 w-5 text-[#0f3460] shrink-0" />
                                 : <ChevronRight className="h-5 w-5 text-gray-400 shrink-0" />}
-                              <span className="max-w-[220px] truncate text-lg font-bold" title={c.cliente_nombre}>
+                              <span className="max-w-[220px] truncate text-base lg:text-lg font-bold" title={c.cliente_nombre}>
                                 {c.cliente_nombre}
                               </span>
                             </div>
                             <div className="text-sm text-gray-500 mt-1 ml-7 font-mono tracking-wide"><span className="font-bold text-gray-400 not-italic mr-1">NIT</span>{c.cliente_nit}</div>
                           </td>
-                          <td className="px-4 py-4 text-gray-600 whitespace-nowrap">{c.ciudad || '—'}</td>
-                          <td className="px-4 py-4 text-gray-600 whitespace-nowrap text-sm">{c.vendedor || '—'}</td>
-                          <td className="px-4 py-4 text-right font-extrabold text-[#0f3460] whitespace-nowrap">{fmtM(c.total_deuda)}</td>
-                          <td className="px-4 py-4 text-right text-green-700 font-semibold whitespace-nowrap">{fmtM(c.vigente)}</td>
-                          <td className="px-4 py-4 text-right text-yellow-700 whitespace-nowrap">{fmtM(c.dias_1_30)}</td>
-                          <td className="px-4 py-4 text-right text-orange-600 whitespace-nowrap">{fmtM(c.dias_31_60)}</td>
-                          <td className="px-4 py-4 text-right text-red-600 whitespace-nowrap">{fmtM(c.dias_61_90)}</td>
-                          <td className="px-4 py-4 text-right text-red-900 font-bold whitespace-nowrap">{fmtM(mas90)}</td>
-                          <td className="px-4 py-4 text-center">
+                          <td className="px-3 py-4 text-gray-600 align-top">{c.ciudad || '—'}</td>
+                          <td className="px-3 py-4 text-gray-600 text-sm break-words leading-5 align-top" title={c.vendedor || '—'}>
+                            {c.vendedor || '—'}
+                          </td>
+                          <td className="px-3 py-4 text-right font-extrabold text-[#0f3460] whitespace-nowrap align-top">{fmtM(c.total_deuda)}</td>
+                          <td className="px-3 py-4 text-right text-orange-600 font-semibold whitespace-nowrap align-top">{fmtM(vencida)}</td>
+                          <td className="px-3 py-4 text-right text-red-900 font-bold whitespace-nowrap align-top">{fmtM(mas90)}</td>
+                          <td className="px-3 py-4 text-center align-top">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${badgeCls(nivel)}`}>
                               {nivel.toUpperCase()}
                             </span>
                           </td>
                         </tr>
-                        {isOpen && <FilaFacturas nit={c.cliente_nit} cols={11} filtro={filtro} />}
+                        {isOpen && <FilaFacturas nit={c.cliente_nit} cols={8} filtro={filtro} />}
                       </Fragment>
                     )
                   })}
@@ -1046,15 +840,12 @@ export const CarteraInforme = () => {
                      const fil = carteraFiltradaRiesgo
                      return (
                       <tr>
-                        <td colSpan={4} className="px-4 py-3 font-bold text-gray-700">
+                        <td colSpan={4} className="px-3 py-3 font-bold text-gray-700">
                           TOTALES {filtroRiesgo !== 'todos' && `(${fil.length} clientes filtrados)`}
                         </td>
-                        <td className="px-4 py-3 text-right font-extrabold text-slate-800">{fmtM(fil.reduce((s,c)=>s+c.total_deuda,0))}</td>
-                        <td className="px-4 py-3 text-right font-bold text-green-700">{fmtM(fil.reduce((s,c)=>s+c.vigente,0))}</td>
-                        <td className="px-4 py-3 text-right font-bold text-yellow-700">{fmtM(fil.reduce((s,c)=>s+c.dias_1_30,0))}</td>
-                        <td className="px-4 py-3 text-right font-bold text-orange-600">{fmtM(fil.reduce((s,c)=>s+c.dias_31_60,0))}</td>
-                        <td className="px-4 py-3 text-right font-bold text-red-600">{fmtM(fil.reduce((s,c)=>s+c.dias_61_90,0))}</td>
-                        <td className="px-4 py-3 text-right font-bold text-red-900">{fmtM(fil.reduce((s,c)=>s+c.dias_91_180+c.mas_180_dias,0))}</td>
+                        <td className="px-3 py-3 text-right font-extrabold text-slate-800">{fmtM(fil.reduce((s,c)=>s+c.total_deuda,0))}</td>
+                        <td className="px-3 py-3 text-right font-bold text-orange-600">{fmtM(fil.reduce((s,c)=>s+c.dias_1_30+c.dias_31_60+c.dias_61_90+c.dias_91_180+c.mas_180_dias,0))}</td>
+                        <td className="px-3 py-3 text-right font-bold text-red-900">{fmtM(fil.reduce((s,c)=>s+c.dias_91_180+c.mas_180_dias,0))}</td>
                         <td colSpan={1} />
                       </tr>
                     )
@@ -1098,7 +889,7 @@ export const CarteraInforme = () => {
                       <th className="px-4 py-3 text-left">Documento</th>
                       <th className="px-4 py-3 text-left">Vencimiento</th>
                       <th className="px-4 py-3 text-center">Días</th>
-                      <th className="px-4 py-3 text-left">Comercial</th>
+                      <th className="px-4 py-3 text-left">Línea</th>
                       <th className="px-4 py-3 text-right">Saldo</th>
                     </tr>
                   </thead>
@@ -1146,7 +937,7 @@ export const CarteraInforme = () => {
               color="purple"
             />
 
-            <BuscarInput value={busRegiones} onChange={v => { setBusRegiones(v); setPageRegiones(1) }} placeholder="Buscar por departamento..." />
+            <BuscarInput value={busRegiones} onChange={v => { setBusRegiones(v); setPageRegiones(1) }} placeholder="Buscar por departamento, ciudad o institución..." />
 
             {regionesQ.isLoading && (
               <div className="flex justify-center py-8"><Spinner className="h-10 w-10" /></div>
@@ -1352,122 +1143,138 @@ export const CarteraInforme = () => {
           <section className="bg-white rounded-2xl shadow-sm p-7">
             <SectionHeader
               icon={<UserCheck className="h-7 w-7" />}
-              title="CARTERA POR COMERCIAL"
-              count={`${comerciales.length} comerciales`}
+              title="CARTERA POR LÍNEA"
+              count={`${comerciales.length} líneas`}
               color="teal"
             />
-            <BuscarInput value={busComerciales} onChange={v => { setBusComerciales(v); setPageComerciales(1) }} placeholder="Buscar por comercial..." />
+            <BuscarInput value={busComerciales} onChange={v => { setBusComerciales(v); setPageComerciales(1) }} placeholder="Buscar por línea o código..." />
+
+            {/* Orden */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-sm text-gray-600 font-semibold">Ordenar:</span>
+              {(['az', 'deuda'] as const).map(o => (
+                <button
+                  key={o}
+                  onClick={() => { setOrdenLineas(o); setPageComerciales(1) }}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${ordenLineas === o ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-300 hover:border-teal-400'}`}
+                >
+                  {o === 'az' ? 'A–Z' : 'Mayor deuda'}
+                </button>
+              ))}
+            </div>
 
             {comercQ.isLoading && (
               <div className="flex justify-center py-8"><Spinner className="h-10 w-10" /></div>
             )}
             {!comercQ.isLoading && comerciales.length === 0 && (
-              <p className="text-gray-400 text-lg py-6 text-center">Sin datos de comerciales</p>
+              <p className="text-gray-400 text-lg py-6 text-center">Sin datos de líneas</p>
             )}
             {comercialesFiltrados.length > 0 && (
-              <div className="overflow-x-auto">
-                <table className="w-full text-base">
-                  <thead className="bg-[#1a1a2e] text-white text-sm">
-                    <tr>
-                      <th className="px-4 py-3 text-left w-8">#</th>
-                      <th className="px-4 py-3 text-left">Comercial</th>
-                      <th className="px-4 py-3 text-center">Clientes</th>
-                      <th className="px-4 py-3 text-right">Total Cartera</th>
-                      <th className="px-4 py-3 text-right">Vencida</th>
-                      <th className="px-4 py-3 text-center">% Vencida</th>
-                      <th className="px-4 py-3 text-center">% Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {comercialesPageItems.map((com: VendedorAgregado, idx) => {
-                      const isOpen = expComerciales.has(com.vendedor)
-                      const pctVenc = com.total_deuda > 0
-                        ? fmtPct((com.total_vencida / com.total_deuda) * 100)
-                        : '0%'
-                      return (
-                        <Fragment key={com.vendedor}>
-                          <tr
-                            onClick={() => setExpComerciales(prev => toggleSet(prev, com.vendedor))}
-                            className="bg-white hover:bg-teal-50 cursor-pointer border-b border-gray-100 transition-colors"
-                          >
-                             <td className="px-4 py-4 text-gray-400 font-mono text-sm">{(Math.min(pageComerciales, comercialesPages) - 1) * PAGE_SIZE + idx + 1}</td>
-                            <td className="px-4 py-4 font-bold text-lg flex items-center gap-2">
-                              {isOpen
-                                ? <ChevronDown className="h-5 w-5 text-teal-600 shrink-0" />
-                                : <ChevronRight className="h-5 w-5 text-gray-400 shrink-0" />}
-                              {com.vendedor}
-                            </td>
-                            <td className="px-4 py-4 text-center">
-                              <span className="bg-teal-100 text-teal-800 font-bold px-3 py-1 rounded-full text-sm">
-                                {com.clientes_count}
-                              </span>
-                            </td>
-                            <td className="px-4 py-4 text-right font-extrabold text-[#0f3460]">{fmtM(com.total_deuda)}</td>
-                            <td className="px-4 py-4 text-right font-bold text-red-600">{fmtM(com.total_vencida)}</td>
-                            <td className="px-4 py-4 text-center">
-                              <span className={`px-2 py-1 rounded text-sm font-bold ${
-                                parseFloat(pctVenc) > 60 ? 'bg-red-100 text-red-800' :
-                                parseFloat(pctVenc) > 30 ? 'bg-orange-100 text-orange-800' :
-                                'bg-green-100 text-green-800'
-                              }`}>{pctVenc}</span>
-                            </td>
-                            <td className="px-4 py-4 text-center text-gray-600 font-semibold">{com.porcentaje}%</td>
-                          </tr>
+              <div className="space-y-3">
+                {comercialesPageItems.map((com: LineaAgregada, idx) => {
+                  const isOpen = expComerciales.has(com.vendedor)
+                  const pctVencNum = com.total_deuda > 0
+                    ? (com.total_vencida / com.total_deuda) * 100
+                    : 0
+                  const pctVencFmt = fmtPct(pctVencNum)
+                  const badgeVenc = pctVencNum > 60 ? 'bg-red-100 text-red-800' : pctVencNum > 30 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                  return (
+                    <div key={com.vendedor} className="border border-teal-200 rounded-2xl overflow-hidden shadow-sm">
+                      {/* Cabecera — clic para expandir */}
+                      <button
+                        onClick={() => setExpComerciales(prev => toggleSet(prev, com.vendedor))}
+                        className="w-full text-left"
+                      >
+                        <div className="flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-3 px-5 py-4 bg-white hover:bg-teal-50 transition-colors">
+                          <span className="text-gray-400 font-mono text-sm w-6 shrink-0 text-right">
+                            {(Math.min(pageComerciales, comercialesPages) - 1) * PAGE_SIZE + idx + 1}
+                          </span>
+                          {isOpen
+                            ? <ChevronDown className="h-5 w-5 text-teal-600 shrink-0" />
+                            : <ChevronRight className="h-5 w-5 text-gray-400 shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-lg sm:text-xl font-extrabold text-gray-900 break-words">{com.linea || com.vendedor}</span>
+                              {com.cod_vend && (
+                                <span className="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full border border-teal-200 shrink-0">
+                                  Cód. {com.cod_vend}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-500 mt-0.5">
+                              {com.clientes_count} {com.clientes_count === 1 ? 'institución' : 'instituciones'}
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full sm:w-auto sm:min-w-[420px]">
+                            <div className="text-right bg-slate-50 rounded-lg px-2 py-1.5">
+                              <p className="text-xs text-gray-500 font-medium">Total</p>
+                              <p className="text-xl font-extrabold text-[#0f3460]">{fmtM(com.total_deuda)}</p>
+                            </div>
+                            <div className="text-right bg-slate-50 rounded-lg px-2 py-1.5">
+                              <p className="text-xs text-gray-500 font-medium">Vencida</p>
+                              <p className={`text-lg font-bold ${pctVencNum > 60 ? 'text-red-700' : pctVencNum > 30 ? 'text-orange-600' : 'text-green-700'}`}>
+                                {fmtM(com.total_vencida)}
+                              </p>
+                            </div>
+                            <div className="text-right bg-slate-50 rounded-lg px-2 py-1.5">
+                              <p className="text-xs text-gray-500 font-medium">% Vencida</p>
+                              <span className={`px-2.5 py-1 rounded-full text-sm font-bold ${badgeVenc}`}>{pctVencFmt}</span>
+                            </div>
+                            <div className="text-right bg-slate-50 rounded-lg px-2 py-1.5">
+                              <p className="text-xs text-gray-500 font-medium">% Total</p>
+                              <p className="text-base font-bold text-gray-700">{com.porcentaje}%</p>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
 
-                          {/* Detalle de instituciones por comercial */}
-                          {isOpen && (
-                            <tr>
-                              <td colSpan={7} className="px-4 py-2">
-                                <div className="bg-teal-50 border border-teal-200 rounded-xl mx-6 mb-3 overflow-hidden">
-                                  <div className="px-5 py-3 bg-teal-100 font-bold text-teal-800 text-base">
-                                    INSTITUCIONES DE {com.vendedor.toUpperCase()} — DE MAYOR A MENOR DEUDA
-                                  </div>
-                                  <table className="w-full text-sm">
-                                    <thead className="bg-teal-200 text-teal-900">
-                                      <tr>
-                                        <th className="px-4 py-2 text-left">#</th>
-                                        <th className="px-4 py-2 text-left">Institución</th>
-                                        <th className="px-4 py-2 text-left">NIT</th>
-                                        <th className="px-4 py-2 text-left">Ciudad</th>
-                                        <th className="px-4 py-2 text-right">Total</th>
-                                        <th className="px-4 py-2 text-right">Vigente</th>
-                                        <th className="px-4 py-2 text-right">+90d</th>
-                                        <th className="px-4 py-2 text-center">Mora máx.</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {com.clientes.map((cl, ci) => (
-                                        <tr key={cl.cliente_nit} className="border-t border-teal-200 hover:bg-teal-100">
-                                          <td className="px-4 py-2 text-gray-400">{ci + 1}</td>
-                                          <td className="px-4 py-2 font-semibold">{cl.cliente_nombre}</td>
-                                          <td className="px-4 py-2 font-mono text-xs text-gray-500">{cl.cliente_nit}</td>
-                                          <td className="px-4 py-2 text-gray-600">{cl.ciudad || '—'}</td>
-                                          <td className="px-4 py-2 text-right font-bold text-[#0f3460]">{fmtM(cl.total_deuda)}</td>
-                                          <td className="px-4 py-2 text-right text-green-700">{fmtM(cl.vigente)}</td>
-                                          <td className="px-4 py-2 text-right text-red-900 font-bold">
-                                            {fmtM(cl.dias_91_180 + cl.mas_180_dias)}
-                                          </td>
-                                          <td className="px-4 py-2 text-center">
-                                            {cl.dias_mora_max > 0
-                                              ? <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-bold">
-                                                  {cl.dias_mora_max}d
-                                                </span>
-                                              : <span className="text-green-600 text-xs">Al día</span>
-                                            }
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
+                      {/* Detalle de instituciones */}
+                      {isOpen && (
+                        <div className="border-t border-teal-200 bg-teal-50">
+                          <div className="px-5 py-3 bg-teal-100 flex items-center justify-between">
+                            <span className="text-sm font-bold text-teal-800 uppercase tracking-wide">
+                              INSTITUCIONES — {(com.linea || com.vendedor).toUpperCase()}
+                            </span>
+                            <span className="text-xs text-teal-600 font-semibold">Mayor a menor deuda</span>
+                          </div>
+                          <div className="divide-y divide-teal-100">
+                            {com.clientes.map((cl, ci) => (
+                              <div key={cl.cliente_nit} className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-5 py-3.5 hover:bg-teal-100 transition-colors">
+                                <span className="text-gray-400 font-mono text-sm w-6 text-right shrink-0">{ci + 1}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="font-bold text-gray-900 text-base">{cl.cliente_nombre}</p>
+                                  <p className="text-xs text-gray-500 font-mono mt-0.5">
+                                    NIT {cl.cliente_nit}{cl.ciudad ? ` · ${cl.ciudad}` : ''}
+                                  </p>
                                 </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                                <div className="flex items-center gap-5 shrink-0 text-right">
+                                  <div>
+                                    <p className="text-xs text-gray-500">Total</p>
+                                    <p className="font-extrabold text-[#0f3460] text-base">{fmtM(cl.total_deuda)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-gray-500">Vigente</p>
+                                    <p className="font-semibold text-green-700 text-sm">{fmtM(cl.vigente)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-gray-500">+90d mora</p>
+                                    <p className="font-bold text-red-900 text-sm">{fmtM(cl.dias_91_180 + cl.mas_180_dias)}</p>
+                                  </div>
+                                  <div className="w-20 text-center">
+                                    {cl.dias_mora_max > 0
+                                      ? <span className="bg-red-100 text-red-800 px-2.5 py-1 rounded-full text-sm font-bold">{cl.dias_mora_max}d</span>
+                                      : <span className="text-green-600 text-sm font-semibold">Al día</span>
+                                    }
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             )}
             <PaginationControls

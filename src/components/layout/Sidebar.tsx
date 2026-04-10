@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutDashboard, Wallet, Building2, MessageSquare,
-  LogOut, ChevronLeft, ChevronRight,
+  LogOut, ChevronLeft, ChevronRight, HandCoins,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -17,6 +17,7 @@ const NAV_ITEMS = [
   { to: '/dashboard', label: 'Panel Ejecutivo', icon: LayoutDashboard },
   { to: '/cartera',   label: 'Cartera',         icon: Wallet          },
   { to: '/bancos',    label: 'Bancos',           icon: Building2       },
+  { to: '/tesoreria', label: 'Tesorería',        icon: HandCoins       },
   { to: '/agente',    label: 'Centro de Mando',  icon: MessageSquare   },
 ]
 

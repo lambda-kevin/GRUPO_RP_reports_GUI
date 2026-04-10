@@ -6,7 +6,7 @@ import {
 } from 'recharts'
 import type { AxiosError } from 'axios'
 import { getDashboardBancos } from '../api/dashboard'
-import { PageLoader } from '../components/ui/Spinner'
+import { PageLoader, Spinner } from '../components/ui/Spinner'
 import { Card } from '../components/ui/Card'
 import { fmtCOP, fmtCOPShort, fmtPct } from '../utils/fmt'
 
@@ -38,23 +38,23 @@ const PaginationControls = ({
 }) => {
   if (pages <= 1) return null
   return (
-    <div className="flex items-center justify-end gap-2 mt-4">
+    <div className="flex items-center justify-end gap-3 mt-5">
       <button
         onClick={() => onChange(Math.max(1, page - 1))}
         disabled={page <= 1}
-        className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 disabled:opacity-40"
+        className="px-5 py-2.5 rounded-xl border border-gray-300 text-base font-bold text-gray-700 disabled:opacity-40 hover:bg-gray-50 transition-colors"
       >
-        Anterior
+        ← Anterior
       </button>
-      <span className="text-sm font-semibold text-gray-600">
+      <span className="text-base font-semibold text-gray-600 px-2">
         Página {page} de {pages}
       </span>
       <button
         onClick={() => onChange(Math.min(pages, page + 1))}
         disabled={page >= pages}
-        className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-semibold text-gray-700 disabled:opacity-40"
+        className="px-5 py-2.5 rounded-xl border border-gray-300 text-base font-bold text-gray-700 disabled:opacity-40 hover:bg-gray-50 transition-colors"
       >
-        Siguiente
+        Siguiente →
       </button>
     </div>
   )
@@ -70,7 +70,7 @@ export const DashboardBancos = () => {
   const [pageCiudades, setPageCiudades] = useState(1)
   const [pageMensual, setPageMensual] = useState(1)
 
-  const { data, isLoading, isError, error } = useQuery({
+  const { data, isLoading, isFetching, isError, error } = useQuery({
     queryKey: ['dashboard-bancos', { año, mes, ciudad, vendedor }],
     queryFn: () => getDashboardBancos({ año, mes, ciudad, vendedor }),
   })
@@ -109,6 +109,7 @@ export const DashboardBancos = () => {
 
   const kpis = data.kpis
   const brechaGlobal = Math.max(0, kpis.ventas_netas - kpis.recaudo)
+  const indiceCobranza = kpis.ventas_netas > 0 ? pct(kpis.recaudo, kpis.ventas_netas) : 0
   const ciudadesOrdenadas = [...data.ventas_por_ciudad].sort((a, b) => b.ventas - a.ventas)
   const regionesOrdenadas = [...(data.ventas_por_region ?? [])].sort((a, b) => b.ventas - a.ventas)
   const mesesOrdenados = [...data.ventas_por_mes].sort((a, b) => a.mes_num - b.mes_num)
@@ -138,7 +139,7 @@ export const DashboardBancos = () => {
       <header className="bg-white/95 backdrop-blur border-b border-gray-200 px-6 py-5 sticky top-0 z-20">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Ventas Netas vs Recaudo</h1>
+            <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Facturación vs Cobranza</h1>
             <p className="text-base text-gray-600 mt-1">Año {data.año}</p>
           </div>
           <img
@@ -153,119 +154,117 @@ export const DashboardBancos = () => {
 
         {/* Filtros */}
         <div className="flex gap-4 mt-5 flex-wrap bg-gray-50 border border-gray-200 rounded-xl p-4">
-          <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-gray-600">Ciudad</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-base font-semibold text-gray-700">Ciudad</label>
             <select
               value={ciudad ?? ''}
               onChange={(e) => setCiudad(e.target.value || undefined)}
-                className="px-3 py-2 text-base border border-gray-300 rounded-lg bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+              className="px-4 py-2.5 text-base border border-gray-300 rounded-xl bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
               <option value="">Todas</option>
               {data.opciones_filtros.ciudades.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
           </div>
 
-          <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-gray-600">Mes</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-base font-semibold text-gray-700">Mes</label>
             <select
               value={mes ?? ''}
               onChange={(e) => setMes(e.target.value ? Number(e.target.value) : undefined)}
-                className="px-3 py-2 text-base border border-gray-300 rounded-lg bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+              className="px-4 py-2.5 text-base border border-gray-300 rounded-xl bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
               <option value="">Todos</option>
               {data.opciones_filtros.meses.map((m) => (
-                <option key={m.value} value={m.value}>
-                  {m.label}
-                </option>
+                <option key={m.value} value={m.value}>{m.label}</option>
               ))}
             </select>
           </div>
 
-          <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-gray-600">Año</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-base font-semibold text-gray-700">Año</label>
             <select
               value={año}
               onChange={(e) => setAño(Number(e.target.value))}
-                className="px-3 py-2 text-base border border-gray-300 rounded-lg bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+              className="px-4 py-2.5 text-base border border-gray-300 rounded-xl bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
               {data.opciones_filtros.años.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
+                <option key={a} value={a}>{a}</option>
               ))}
             </select>
           </div>
 
-          <div className="flex flex-col gap-1">
-              <label className="text-sm font-semibold text-gray-600">Vendedor</label>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-base font-semibold text-gray-700">Línea de Producto</label>
             <select
               value={vendedor ?? ''}
               onChange={(e) => setVendedor(e.target.value || undefined)}
-                className="px-3 py-2 text-base border border-gray-300 rounded-lg bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
+              className="px-4 py-2.5 text-base border border-gray-300 rounded-xl bg-white focus:border-primary-500 focus:ring-1 focus:ring-primary-500"
             >
-              <option value="">Todos</option>
+              <option value="">Todas</option>
               {data.opciones_filtros.vendedores.map((v) => (
-                <option key={v} value={v}>
-                  {v}
-                </option>
+                <option key={v} value={v}>{v}</option>
               ))}
             </select>
           </div>
         </div>
+        {isFetching && (
+          <div className="mt-3 inline-flex items-center gap-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-lg px-3 py-1.5">
+            <Spinner className="h-4 w-4 text-gray-600" />
+            <span>Actualizando filtros...</span>
+          </div>
+        )}
       </header>
 
       <div className="p-7 space-y-7">
         {/* KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <Card className="border-l-4 border-green-600 shadow-sm">
-            <div className="p-4">
-              <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">Ventas Netas</div>
-              <div className="text-3xl font-semibold text-gray-900">{fmtCOPShort(kpis.ventas_netas)}</div>
-              <div className="text-sm text-gray-500 mt-1">Total facturado</div>
+            <div className="p-5">
+              <div className="text-base font-semibold text-gray-500 mb-2 uppercase tracking-wide">Facturación neta</div>
+              <div className="text-4xl font-extrabold text-gray-900">{fmtCOPShort(kpis.ventas_netas)}</div>
+              <div className="text-sm text-gray-500 mt-2">Monto neto facturado en el período</div>
             </div>
           </Card>
 
-          <Card className="border-l-4 border-green-400 shadow-sm">
-            <div className="p-4">
-              <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">Recaudo</div>
-              <div className="text-3xl font-semibold text-gray-900">{fmtCOPShort(kpis.recaudo)}</div>
-              <div className="text-sm text-gray-500 mt-1">Total recaudado</div>
+          <Card className="border-l-4 border-blue-500 shadow-sm">
+            <div className="p-5">
+              <div className="text-base font-semibold text-gray-500 mb-2 uppercase tracking-wide">Cobranza</div>
+              <div className="text-4xl font-extrabold text-gray-900">{fmtCOPShort(kpis.recaudo)}</div>
+              <div className="text-sm text-gray-500 mt-2">Cobro efectivo registrado en el período</div>
             </div>
           </Card>
 
           <Card className="border-l-4 border-emerald-500 shadow-sm">
-            <div className="p-4">
-              <div className="text-sm font-semibold text-gray-500 mb-1 uppercase tracking-wide">Porcentaje de Recaudo</div>
-              <div className="text-3xl font-semibold text-gray-900">
-                {fmtPct(kpis.porcentaje_recaudo, 2)}
+            <div className="p-5">
+              <div className="text-base font-semibold text-gray-500 mb-2 uppercase tracking-wide">Índice de cobranza</div>
+              <div className="text-4xl font-extrabold text-gray-900">
+                {fmtPct(indiceCobranza, 1)}
               </div>
-              <div className="text-sm text-gray-500 mt-1">Cumplimiento frente a ventas</div>
+              <div className="text-sm text-gray-500 mt-2">Cobranza / facturación neta del período</div>
             </div>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <Card className="border-l-4 border-red-400 shadow-sm">
-            <div className="p-4">
-              <p className="text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Brecha por gestionar</p>
-              <p className="text-2xl font-semibold text-red-600">{fmt(brechaGlobal)}</p>
-              <p className="text-xs text-gray-500 mt-1">
-                Monto pendiente para convertir la facturación en caja.
+            <div className="p-5">
+              <p className="text-base font-semibold text-gray-500 mb-2 uppercase tracking-wide">Saldo pendiente de recaudo</p>
+              <p className="text-3xl font-extrabold text-red-600">{fmt(brechaGlobal)}</p>
+              <p className="text-sm text-gray-500 mt-2">
+                Diferencia del período entre facturación neta y cobranza.
               </p>
             </div>
           </Card>
           <Card className="border-l-4 border-green-500 shadow-sm">
-            <div className="p-4">
-              <p className="text-xs font-semibold text-gray-500 mb-1 uppercase tracking-wide">Ciudad con mayor recaudo</p>
-              <p className="text-2xl font-semibold text-gray-900">
+            <div className="p-5">
+              <p className="text-base font-semibold text-gray-500 mb-2 uppercase tracking-wide">Ciudad con mayor cobranza</p>
+              <p className="text-3xl font-extrabold text-gray-900">
                 {ciudadMayorRecaudo?.ciudad ?? 'Sin datos'}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                {ciudadMayorRecaudo ? `${fmtShort(ciudadMayorRecaudo.recaudo)} recaudados.` : 'N/A'}
+              <p className="text-sm text-gray-500 mt-2">
+                {ciudadMayorRecaudo ? `${fmtShort(ciudadMayorRecaudo.recaudo)} cobrados.` : 'N/A'}
               </p>
             </div>
           </Card>
@@ -274,8 +273,8 @@ export const DashboardBancos = () => {
         {/* Vista macro por región (mismo concepto que Cartera por Región) */}
         <Card className="shadow-sm">
           <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-800 mb-5 pb-3 border-b border-gray-200">
-              VISTA MACRO · VENTAS Y RECAUDO POR REGIÓN
+            <h2 className="text-xl font-extrabold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200">
+              VISTA MACRO · FACTURACIÓN Y COBRANZA POR REGIÓN
             </h2>
             {regionesOrdenadas.length === 0 ? (
               <p className="text-sm text-gray-500">Sin datos regionales para los filtros seleccionados.</p>
@@ -287,9 +286,9 @@ export const DashboardBancos = () => {
                       <th className="text-left py-3 pr-3">Región</th>
                       <th className="text-right py-3 px-3">Ciudades</th>
                       <th className="text-right py-3 px-3">Ventas</th>
-                      <th className="text-right py-3 px-3">Recaudo</th>
+                      <th className="text-right py-3 px-3">Cobranza</th>
                       <th className="text-right py-3 px-3">% Ventas</th>
-                      <th className="text-right py-3 pl-3">% Recaudo</th>
+                      <th className="text-right py-3 pl-3">% Cobranza</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -310,11 +309,11 @@ export const DashboardBancos = () => {
           </div>
         </Card>
 
-        {/* Gráfico Principal - Ventas vs Recaudo Mensual */}
+        {/* Gráfico Principal - Facturación vs Cobranza Mensual */}
         <Card>
           <div className="p-4">
-            <h2 className="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200">
-              VENTAS NETAS VS RECAUDO POR MES
+            <h2 className="text-lg font-extrabold text-gray-800 mb-4 pb-2 border-b-2 border-gray-200">
+              FACTURACIÓN NETA VS COBRANZA POR MES
             </h2>
             <ResponsiveContainer width="100%" height={350}>
               <ComposedChart data={mesesOrdenados}>
@@ -339,11 +338,11 @@ export const DashboardBancos = () => {
                   formatter={(value: number) => fmt(value)}
                 />
                 <Legend wrapperStyle={{ fontSize: '12px' }} />
-                <Bar dataKey="ventas_netas" name="Ventas Netas" fill="#16a34a" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="ventas_netas" name="Facturación neta" fill="#16a34a" radius={[4, 4, 0, 0]} />
                 <Line
                   type="monotone"
                   dataKey="recaudo"
-                  name="Recaudo"
+                  name="Cobranza"
                   stroke="#15803d"
                   strokeWidth={2.5}
                   dot={{ fill: '#15803d', r: 4 }}
@@ -359,7 +358,7 @@ export const DashboardBancos = () => {
           {/* Ventas por Ciudad */}
           <Card className="shadow-sm">
             <div className="p-4">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200">
+              <h2 className="text-lg font-extrabold text-gray-800 mb-4 pb-2 border-b-2 border-gray-200">
                 VENTAS POR CIUDAD
               </h2>
               <ResponsiveContainer width="100%" height={300}>
@@ -393,11 +392,11 @@ export const DashboardBancos = () => {
             </div>
           </Card>
 
-          {/* Recaudo por Ciudad */}
+          {/* Cobranza por Ciudad */}
           <Card className="shadow-sm">
             <div className="p-4">
-              <h2 className="text-sm font-semibold text-gray-700 mb-4 pb-2 border-b border-gray-200">
-                RECAUDO POR CIUDAD
+              <h2 className="text-lg font-extrabold text-gray-800 mb-4 pb-2 border-b-2 border-gray-200">
+                COBRANZA POR CIUDAD
               </h2>
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={ciudadesOrdenadas} layout="vertical">
@@ -424,7 +423,7 @@ export const DashboardBancos = () => {
                     }}
                     formatter={(value: number) => fmt(value)}
                   />
-                  <Bar dataKey="recaudo" name="Recaudo" fill="#15803d" radius={[0, 4, 4, 0]} />
+                  <Bar dataKey="recaudo" name="Cobranza" fill="#15803d" radius={[0, 4, 4, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -434,7 +433,7 @@ export const DashboardBancos = () => {
         <div className="grid grid-cols-1 gap-6">
           <Card className="shadow-sm">
             <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-5 pb-3 border-b border-gray-200">
+              <h2 className="text-xl font-extrabold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200">
                 CIUDADES CON MAYOR IMPACTO
               </h2>
               <div className="overflow-x-auto">
@@ -443,8 +442,8 @@ export const DashboardBancos = () => {
                     <tr className="border-b border-gray-200 text-base text-gray-600 uppercase tracking-wide">
                       <th className="text-left py-3 pr-3">Ciudad</th>
                       <th className="text-right py-3 px-3">Ventas</th>
-                      <th className="text-right py-3 px-3">Recaudo</th>
-                      <th className="text-right py-3 px-3">% Recaudo</th>
+                      <th className="text-right py-3 px-3">Cobranza</th>
+                      <th className="text-right py-3 px-3">% Cobranza</th>
                       <th className="text-right py-3 px-3">Brecha</th>
                       <th className="text-center py-3 pl-3">Prioridad</th>
                     </tr>
@@ -477,7 +476,7 @@ export const DashboardBancos = () => {
 
           <Card className="shadow-sm">
             <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-5 pb-3 border-b border-gray-200">
+              <h2 className="text-xl font-extrabold text-gray-800 mb-5 pb-3 border-b-2 border-gray-200">
                 SEGUIMIENTO MENSUAL
               </h2>
               <div className="overflow-x-auto">
@@ -486,8 +485,8 @@ export const DashboardBancos = () => {
                     <tr className="border-b border-gray-200 text-base text-gray-600 uppercase tracking-wide">
                       <th className="text-left py-3 pr-3">Mes</th>
                       <th className="text-right py-3 px-3">Ventas</th>
-                      <th className="text-right py-3 px-3">Recaudo</th>
-                      <th className="text-right py-3 px-3">% Recaudo</th>
+                      <th className="text-right py-3 px-3">Cobranza</th>
+                      <th className="text-right py-3 px-3">% Cobranza</th>
                       <th className="text-right py-3 pl-3">Variación</th>
                     </tr>
                   </thead>
