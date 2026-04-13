@@ -16,7 +16,7 @@ import { Badge } from '../components/ui/Badge'
 import { fmtCOP, fmtCOPShort, fmtPct } from '../utils/fmt'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
-import type { BancosResumen, CarteraResumen } from '../types'
+import type { BancosResumen, CarteraResumen, GrupoCartDash } from '../types'
 
 const hasBancos = (b: unknown): b is BancosResumen =>
   typeof b === 'object' && b !== null && 'fecha_corte' in b
@@ -39,6 +39,15 @@ const TRAMO_COLORS: Record<string, string> = {
   '91-180 d': '#dc2626',
   '+180 d':   '#7f1d1d',
 }
+
+const GRUPO_COLOR_DASH: Record<string, string> = {
+  'Grupo Zentria':    '#0f3460',
+  'Grupo SURA':       '#1d4ed8',
+  'Grupo Quirónsalud':'#7c3aed',
+  'Grupo AUNA':       '#0891b2',
+  'Otros':            '#94a3b8',
+}
+const gColorDash = (g: string) => GRUPO_COLOR_DASH[g] ?? '#64748b'
 
 interface KPIProps {
   label: string
@@ -75,12 +84,12 @@ const KPI = ({ label, value, sub, icon, color, pct }: KPIProps) => {
   return (
     <div className={`rounded-2xl border p-5 ${bg} flex flex-col gap-2`}>
       <div className="flex items-start justify-between">
-        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide leading-tight">{label}</p>
+        <p className="text-sm font-bold text-gray-600 uppercase tracking-wide leading-tight">{label}</p>
         <span className={`${iconCls} opacity-70`}>{icon}</span>
       </div>
-      <p className={`text-3xl font-extrabold ${valCls} leading-none`}>{value}</p>
+      <p className={`text-4xl font-extrabold ${valCls} leading-none`}>{value}</p>
       {(sub || pct !== undefined) && (
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-sm text-gray-500 mt-1">
           {pct !== undefined && <span className="font-semibold">{fmtPct(pct)} del total · </span>}
           {sub}
         </p>
@@ -166,16 +175,16 @@ export const Dashboard = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {alertas.map((a, i) => {
               const styles = {
-                ok:    { bg: 'bg-green-50 border-green-200',  icon: <CheckCircle className="h-4 w-4 text-green-600" />,  txt: 'text-green-800' },
-                warn:  { bg: 'bg-amber-50 border-amber-200',  icon: <AlertTriangle className="h-4 w-4 text-amber-500" />, txt: 'text-amber-800' },
-                error: { bg: 'bg-red-50 border-red-200',      icon: <XCircle className="h-4 w-4 text-red-600" />,        txt: 'text-red-800'   },
+                ok:    { bg: 'bg-green-50 border-green-200',  icon: <CheckCircle className="h-5 w-5 text-green-600" />,  txt: 'text-green-800' },
+                warn:  { bg: 'bg-amber-50 border-amber-200',  icon: <AlertTriangle className="h-5 w-5 text-amber-500" />, txt: 'text-amber-800' },
+                error: { bg: 'bg-red-50 border-red-200',      icon: <XCircle className="h-5 w-5 text-red-600" />,        txt: 'text-red-800'   },
               }[a.nivel] ?? { bg: 'bg-gray-50 border-gray-200', icon: null, txt: 'text-gray-700' }
               return (
-                <div key={i} className={`rounded-xl border px-4 py-3 flex items-start gap-3 ${styles.bg}`}>
+                <div key={i} className={`rounded-xl border px-4 py-4 flex items-start gap-3 ${styles.bg}`}>
                   <span className="mt-0.5 shrink-0">{styles.icon}</span>
                   <div>
-                    <p className={`text-xs font-bold uppercase tracking-wide ${styles.txt}`}>{a.titulo}</p>
-                    <p className="text-xs text-gray-600 mt-0.5">{a.descripcion}</p>
+                    <p className={`text-sm font-bold uppercase tracking-wide ${styles.txt}`}>{a.titulo}</p>
+                    <p className="text-sm text-gray-600 mt-0.5">{a.descripcion}</p>
                   </div>
                 </div>
               )
@@ -187,7 +196,7 @@ export const Dashboard = () => {
         {cartera ? (
           <>
             <div>
-              <h2 className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-3">
+              <h2 className="text-base font-extrabold text-gray-700 uppercase tracking-widest mb-3">
                 Cartera — Corte {format(parseLocalDate(cartera.fecha_corte), "d 'de' MMMM yyyy", { locale: es })}
               </h2>
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -215,9 +224,9 @@ export const Dashboard = () => {
                   color="red"
                 />
                 <KPI
-                  label="Al día / Vigente"
+                  label="Sin mora (vigente)"
                   value={fmtCOPShort(cartera.frescas)}
-                  sub="Corriente + 1-30 días"
+                  sub="Cartera al corriente, sin vencimiento"
                   icon={<CheckCircle className="h-5 w-5" />}
                   color="gray"
                 />
@@ -230,7 +239,7 @@ export const Dashboard = () => {
               {/* Distribución por tramo — 2 cols */}
               <Card className="shadow-sm lg:col-span-2">
                 <div className="p-5">
-                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-4">
+                  <h3 className="text-base font-extrabold text-gray-700 uppercase tracking-wide mb-4">
                     DISTRIBUCIÓN POR TRAMO DE MORA
                   </h3>
                   <ResponsiveContainer width="100%" height={220}>
@@ -264,30 +273,30 @@ export const Dashboard = () => {
               {/* Top críticos — 3 cols */}
               <Card className="shadow-sm lg:col-span-3">
                 <div className="p-5">
-                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide mb-4">
+                  <h3 className="text-base font-extrabold text-gray-700 uppercase tracking-wide mb-4">
                     CLIENTES EN MORA CRÍTICA (+90 DÍAS)
                   </h3>
                   {cartera.top_criticos.length === 0 ? (
                     <div className="flex items-center gap-2 text-green-600 py-6">
-                      <CheckCircle className="h-5 w-5" />
-                      <p className="text-sm font-semibold">Sin clientes en mora crítica</p>
+                      <CheckCircle className="h-6 w-6" />
+                      <p className="text-base font-semibold">Sin clientes en mora crítica</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       {cartera.top_criticos.map((c, i) => {
                         const pct = cartera.total_cartera > 0 ? (c.mora_90 / cartera.total_cartera) * 100 : 0
                         return (
-                          <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0">
-                            <span className="w-6 h-6 rounded-full bg-red-100 text-red-700 text-xs font-bold flex items-center justify-center shrink-0">
+                          <div key={i} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
+                            <span className="w-7 h-7 rounded-full bg-red-100 text-red-700 text-sm font-bold flex items-center justify-center shrink-0">
                               {i + 1}
                             </span>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-gray-800 truncate">{c.nombre}</p>
-                              <p className="text-xs text-gray-600 truncate">{c.ciudad}{c.vendedor ? ` · ${c.vendedor}` : ''}</p>
+                              <p className="text-base font-semibold text-gray-800 truncate">{c.nombre}</p>
+                              <p className="text-sm text-gray-600 truncate">{c.ciudad}{c.vendedor ? ` · ${c.vendedor}` : ''}</p>
                             </div>
                             <div className="text-right shrink-0">
-                              <p className="text-sm font-bold text-red-600">{fmtCOPShort(c.mora_90)}</p>
-                              <p className="text-xs text-gray-600">{fmtPct(pct)} del total</p>
+                              <p className="text-base font-bold text-red-600">{fmtCOPShort(c.mora_90)}</p>
+                              <p className="text-sm text-gray-600">{fmtPct(pct)} del total</p>
                             </div>
                           </div>
                         )
@@ -297,6 +306,32 @@ export const Dashboard = () => {
                 </div>
               </Card>
             </div>
+
+          {/* ── GRUPOS EMPRESARIALES en dashboard ── */}
+          {!!cartera.grupos_cartera?.length && (
+            <div>
+              <h2 className="text-base font-extrabold text-gray-700 uppercase tracking-widest mb-3">
+                Concentración por Grupo Empresarial
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                {(cartera.grupos_cartera as GrupoCartDash[]).map(g => (
+                  <div key={g.grupo}
+                    className="rounded-xl border-l-4 bg-white border border-gray-100 shadow-sm p-3 flex flex-col gap-1"
+                    style={{ borderLeftColor: gColorDash(g.grupo) }}>
+                    <p className="text-xs font-bold text-gray-700 truncate">{g.grupo.replace('Grupo ', '')}</p>
+                    <p className="text-lg font-extrabold" style={{ color: gColorDash(g.grupo) }}>
+                      {fmtCOPShort(g.total_deuda)}
+                    </p>
+                    <p className="text-xs text-gray-500">{g.porcentaje}% del total</p>
+                    {g.mora_90 > 0 && (
+                      <p className="text-xs font-semibold text-red-600">{fmtCOPShort(g.mora_90)} mora</p>
+                    )}
+                    <p className="text-xs text-gray-400">{g.clientes_count} inst.</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           </>
         ) : (
           <Card>
@@ -315,7 +350,7 @@ export const Dashboard = () => {
             <Card className="shadow-sm">
               <div className="p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                  <h3 className="text-base font-extrabold text-gray-700 uppercase tracking-wide">
                     BANCOS — ÚLTIMO CORTE
                   </h3>
                   <span className="text-xs text-gray-600">
@@ -371,18 +406,18 @@ export const Dashboard = () => {
           <Card className="shadow-sm">
             <div className="p-5">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                <h3 className="text-base font-extrabold text-gray-700 uppercase tracking-wide">
                   ESTADO DE PIPELINES
                 </h3>
-                <Activity className="h-4 w-4 text-gray-600" />
+                <Activity className="h-5 w-5 text-gray-600" />
               </div>
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {pipelines.map((p) => (
-                  <div key={p.nombre} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
+                  <div key={p.nombre} className="flex items-center gap-3 py-3 border-b border-gray-100 last:border-0">
                     <Badge nivel={p.nivel}>{p.estado}</Badge>
-                    <span className="flex-1 text-sm font-medium text-gray-700">{p.nombre}</span>
-                    <span className="text-xs text-gray-600 flex items-center gap-1 shrink-0">
-                      <Clock className="h-3 w-3" />
+                    <span className="flex-1 text-base font-semibold text-gray-700">{p.nombre}</span>
+                    <span className="text-sm text-gray-500 flex items-center gap-1 shrink-0">
+                      <Clock className="h-4 w-4" />
                       {p.ultima_ejecucion
                         ? format(new Date(p.ultima_ejecucion), "d MMM · HH:mm", { locale: es })
                         : 'N/A'}
@@ -390,7 +425,7 @@ export const Dashboard = () => {
                   </div>
                 ))}
                 {pipelines.length === 0 && (
-                  <p className="text-sm text-gray-600 text-center py-6">Sin datos de pipelines</p>
+                  <p className="text-base text-gray-500 text-center py-6">Sin datos de pipelines</p>
                 )}
               </div>
             </div>

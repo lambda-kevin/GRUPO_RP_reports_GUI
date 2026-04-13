@@ -82,10 +82,17 @@ export interface ClienteGrupo {
   total_vencida: number
   mora_90: number
   dias_mora_max: number
+  // Rentabilidad
+  ventas_anio: number
+  ratio_cartera_ventas: number | null   // % cartera / ventas del año
+  dias_cartera: number | null           // días promedio de cobro (DSO)
+  // Pareto interno al grupo
+  porcentaje_en_grupo: number
+  porcentaje_acumulado_en_grupo: number
 }
 
 export interface GrupoAgregado {
-  perfil: string
+  grupo: string
   peso: number
   clientes_count: number
   total_deuda: number
@@ -97,7 +104,29 @@ export interface GrupoAgregado {
   total_vencida: number
   mora_90: number
   porcentaje: number
+  porcentaje_acumulado: number   // Pareto acumulado (grupos ordenados por deuda desc)
+  // Rentabilidad
+  ventas_anio: number
+  ratio_cartera_ventas: number | null
+  dias_cartera: number | null
   clientes: ClienteGrupo[]
+}
+
+/** Item del Pareto plano de clientes (vista micro, todos los grupos combinados) */
+export interface ParetoClienteItem {
+  grupo: string
+  peso: number
+  cliente_nit: string
+  cliente_nombre: string
+  ciudad: string
+  total_deuda: number
+  mora_90: number
+  total_vencida: number
+  ventas_anio: number
+  ratio_cartera_ventas: number | null
+  dias_cartera: number | null
+  porcentaje: number
+  porcentaje_acumulado: number
 }
 
 export interface Factura {
@@ -231,6 +260,15 @@ export interface BancosResumen {
   no_identificados_fmt: string
 }
 
+export interface GrupoCartDash {
+  grupo: string
+  peso: number
+  clientes_count: number
+  total_deuda: number
+  mora_90: number
+  porcentaje: number
+}
+
 export interface CarteraResumen {
   fecha_corte: string
   // Totales
@@ -256,6 +294,8 @@ export interface CarteraResumen {
   distribucion: { tramo: string; monto: number }[]
   // Top críticos enriquecidos
   top_criticos: { nombre: string; ciudad: string; vendedor: string; deuda: number; mora_90: number; mora_90_fmt: string }[]
+  // Grupos empresariales (concentración rápida para dashboard)
+  grupos_cartera?: GrupoCartDash[]
 }
 
 // bancos/cartera pueden ser {} si no hay datos aún

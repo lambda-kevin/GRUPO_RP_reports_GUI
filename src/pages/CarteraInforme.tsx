@@ -1,7 +1,7 @@
 import { useState, Fragment, type ReactNode } from 'react'
 import {
-  ComposedChart, Bar, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip as RTooltip, ReferenceLine, ResponsiveContainer, Cell, Area,
+  ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
+  CartesianGrid, Tooltip as RTooltip, ReferenceLine, Cell,
 } from 'recharts'
 import { useQuery } from '@tanstack/react-query'
 import type { AxiosError } from 'axios'
@@ -12,14 +12,14 @@ import {
 } from 'lucide-react'
 import {
   getCartera, getProximosVencimientos,
-  getCarteraLineas, getCarteraRegiones, getFacturas,
+  getCarteraLineas, getCarteraRegiones, getFacturas, getCarteraGrupos,
   type FiltroFecha,
 } from '../api/dashboard'
 import { Spinner } from '../components/ui/Spinner'
 import { fmtCOP, fmtCOPShort, fmtPct } from '../utils/fmt'
 import type {
   SnapCartera, Factura, ProximoVencimiento,
-  CiudadAgregada, LineaAgregada, RegionAgregada,
+  CiudadAgregada, LineaAgregada, RegionAgregada, GrupoAgregado, ParetoClienteItem,
 } from '../types'
 
 // Aliases locales para uso conciso en este módulo
@@ -32,258 +32,6 @@ const paginate = <T,>(items: T[], page: number) =>
   items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
 const hoy = () => new Date().toISOString().slice(0, 10)
-
-// ─── Pareto ───────────────────────────────────────────────────────────────────
-
-interface ParetoItem {
-  nombre: string
-  nombreCompleto: string
-  deuda: number
-  pct: number
-  acumulado: number
-  color: string
-  esOtros: boolean
-}
-
-const NIVEL_COLOR: Record<string, string> = {
-  critico: '#b91c1c', alto: '#ea580c', medio: '#ca8a04', leve: '#2563eb', ok: '#16a34a',
-}
-
-const buildPareto = (cartera: SnapCartera[]): ParetoItem[] => {
-  const total = cartera.reduce((s, c) => s + c.total_deuda, 0)
-  if (total === 0) return []
-
-  // Ordenar de mayor a menor deuda
-  const sorted = [...cartera].sort((a, b) => b.total_deuda - a.total_deuda)
-
-  let acum = 0
-  const items: ParetoItem[] = []
-  let otrosTotal = 0
-  let umbralAlcanzado = false
-
-  for (const c of sorted) {
-    const pct = (c.total_deuda / total) * 100
-
-    if (!umbralAlcanzado) {
-      acum += pct
-      const nivel = (c.dias_91_180 + c.mas_180_dias) > 0 ? 'critico'
-        : c.dias_61_90 > 0 ? 'alto'
-        : c.dias_31_60 > 0 ? 'medio'
-        : c.dias_1_30  > 0 ? 'leve' : 'ok'
-      const palabras = c.cliente_nombre.split(' ')
-      const corto = palabras.slice(0, 2).join(' ')
-      items.push({
-        nombre: corto.length > 18 ? corto.slice(0, 17) + '…' : corto,
-        nombreCompleto: c.cliente_nombre,
-        deuda: c.total_deuda,
-        pct: Math.round(pct),
-        acumulado: Math.round(acum),
-        color: NIVEL_COLOR[nivel],
-        esOtros: false,
-      })
-      if (acum >= 80) umbralAlcanzado = true
-    } else {
-      otrosTotal += c.total_deuda
-    }
-  }
-
-  // Barra "Otros" con el 20% restante
-  if (otrosTotal > 0) {
-    const pctOtros = (otrosTotal / total) * 100
-    items.push({
-      nombre: 'Otros',
-      nombreCompleto: 'Otros',
-      deuda: otrosTotal,
-      pct: Math.round(pctOtros),
-      acumulado: 100,
-      color: '#94a3b8',
-      esOtros: true,
-    })
-  }
-
-  return items
-}
-
-// Tooltip personalizado del Pareto
-const ParetoTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null
-  const d = payload[0]?.payload as ParetoItem
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[200px] max-w-[340px]">
-      <p className="font-bold text-gray-800 mb-1 break-words whitespace-normal">{d.nombreCompleto || label}</p>
-      <p className="text-slate-700">Deuda: <strong>{fmtCOPShort(d.deuda)}</strong></p>
-      <p className="text-blue-600">% del total: <strong>{Math.round(d.pct)}%</strong></p>
-      <p className="text-purple-700">Acumulado: <strong>{Math.round(d.acumulado)}%</strong></p>
-    </div>
-  )
-}
-
-const SeccionPareto = ({ cartera, totalCartera }: {
-  cartera: SnapCartera[]
-  totalCartera: number
-}) => {
-  const datos = buildPareto(cartera)
-  const clientesOrdenados = [...cartera].sort((a, b) => b.total_deuda - a.total_deuda)
-  const [pageParetoClientes, setPageParetoClientes] = useState(1)
-  const paretoPages = totalPages(clientesOrdenados.length)
-  const paretoItems = paginate(clientesOrdenados, Math.min(pageParetoClientes, paretoPages))
-  if (datos.length === 0) return null
-
-  // Clientes individuales que suman el 80% (excluye la barra "Otros")
-  const clientesEn80 = datos.filter(d => !d.esOtros).length
-
-  return (
-    <section className="bg-white rounded-2xl shadow-sm p-7">
-      <div className="flex items-start justify-between gap-4 mb-5">
-        <h2 className="text-2xl font-extrabold text-gray-800">CONCENTRACIÓN DE CARTERA</h2>
-        <div className="shrink-0 bg-[#eef2ff] border border-[#c7d2fe] rounded-xl px-4 py-2 text-center">
-          <p className="text-xs text-[#1a1a2e] font-semibold uppercase tracking-wide">Regla 80/20</p>
-          <p className="text-2xl font-extrabold text-[#1a1a2e]">{clientesEn80} clientes</p>
-          <p className="text-sm text-[#1a1a2e]">concentran el <strong>80%</strong> de la deuda</p>
-        </div>
-      </div>
-
-      <ResponsiveContainer width="100%" height={300}>
-        <ComposedChart data={datos} margin={{ top: 10, right: 50, left: 10, bottom: 60 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-
-          <XAxis
-            dataKey="nombre"
-            tick={{ fontSize: 16, fill: '#111827', fontWeight: 700 }}
-            angle={-35}
-            textAnchor="end"
-            height={70}
-            interval={0}
-          />
-
-          {/* Eje izquierdo: montos */}
-          <YAxis
-            yAxisId="left"
-            tickFormatter={v => fmtCOPShort(v)}
-            tick={{ fontSize: 16, fill: '#111827', fontWeight: 700 }}
-            width={88}
-          />
-
-          {/* Eje derecho: porcentaje acumulado */}
-          <YAxis
-            yAxisId="right"
-            orientation="right"
-            domain={[0, 100]}
-            tickFormatter={v => `${v}%`}
-            tick={{ fontSize: 16, fill: '#111827', fontWeight: 700 }}
-            width={62}
-          />
-
-          <RTooltip content={<ParetoTooltip />} />
-
-          {/* Línea de referencia 80% */}
-          <ReferenceLine
-            yAxisId="right"
-            y={80}
-            stroke="#1a1a2e"
-            strokeDasharray="6 3"
-            strokeWidth={2.5}
-            label={{ value: '80%', position: 'insideRight', fontSize: 14, fill: '#111827', fontWeight: 700 }}
-          />
-
-          {/* Barras coloreadas por nivel de riesgo */}
-          <Bar yAxisId="left" dataKey="deuda" radius={[4, 4, 0, 0]} maxBarSize={48}>
-            {datos.map((d, i) => (
-              <Cell key={i} fill={d.color} opacity={d.esOtros ? 0.6 : 1} />
-            ))}
-          </Bar>
-
-          {/* Línea acumulada */}
-          <Line
-            yAxisId="right"
-            type="monotone"
-            dataKey="acumulado"
-            stroke="#1a1a2e"
-            strokeWidth={3}
-            dot={{ r: 4, fill: '#1a1a2e', strokeWidth: 0 }}
-            activeDot={{ r: 6 }}
-          />
-        </ComposedChart>
-      </ResponsiveContainer>
-
-      {/* Leyenda */}
-      <div className="flex flex-wrap items-center gap-5 mt-3 text-sm text-gray-900 font-semibold">
-        <span className="flex items-center gap-1.5">
-          <span className="w-4 h-3 rounded-sm inline-block bg-[#b91c1c]" /> Crítico (+90d)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-4 h-3 rounded-sm inline-block bg-[#ea580c]" /> Alto (61-90d)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-4 h-3 rounded-sm inline-block bg-[#ca8a04]" /> Medio (31-60d)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-4 h-3 rounded-sm inline-block bg-[#2563eb]" /> Leve (1–30d)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="w-4 h-3 rounded-sm inline-block bg-[#16a34a]" /> Sin mora
-        </span>
-        <span className="flex items-center gap-1.5 ml-4 border-l border-gray-200 pl-4">
-          <svg width="24" height="6"><line x1="0" y1="3" x2="24" y2="3" stroke="#1a1a2e" strokeWidth="2.5" /></svg>
-          % acumulado (eje derecho)
-        </span>
-        <span className="flex items-center gap-1.5">
-          <svg width="24" height="6"><line x1="0" y1="3" x2="24" y2="3" stroke="#1a1a2e" strokeWidth="2" strokeDasharray="6 3" /></svg>
-          Umbral 80%
-        </span>
-      </div>
-
-      <div className="mt-7 border border-gray-200 rounded-xl overflow-hidden">
-        <div className="px-4 py-3 bg-[#1a1a2e] text-white">
-          <h3 className="text-lg font-extrabold">CLIENTES — DE MAYOR A MENOR DEUDA</h3>
-          <p className="text-sm text-white/80">{clientesOrdenados.length} clientes ordenados por saldo total</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-base">
-            <thead className="bg-slate-100 text-slate-700 text-sm">
-              <tr>
-                <th className="px-4 py-3 text-left w-10">#</th>
-                <th className="px-4 py-3 text-left">Cliente</th>
-                <th className="px-4 py-3 text-left">Ciudad</th>
-                <th className="px-4 py-3 text-left">Línea(s)</th>
-                <th className="px-4 py-3 text-right">Total deuda</th>
-                <th className="px-4 py-3 text-right">+90d</th>
-                <th className="px-4 py-3 text-center">% participación</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paretoItems.map((c, idx) => {
-                const deudaCritica = c.dias_91_180 + c.mas_180_dias
-                const participacion = totalCartera > 0 ? (c.total_deuda / totalCartera) * 100 : 0
-                return (
-                  <tr key={c.id} className="border-t border-gray-100 hover:bg-slate-50">
-                    <td className="px-4 py-3 text-gray-400 font-mono text-sm">{(Math.min(pageParetoClientes, paretoPages) - 1) * PAGE_SIZE + idx + 1}</td>
-                    <td className="px-4 py-3">
-                      <p className="font-bold text-gray-900">{c.cliente_nombre}</p>
-                      <p className="text-xs text-gray-500 font-mono mt-0.5">NIT {c.cliente_nit}</p>
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">{c.ciudad || '—'}</td>
-                    <td className="px-4 py-3 text-gray-700">{c.vendedor || '—'}</td>
-                    <td className="px-4 py-3 text-right font-extrabold text-[#0f3460]">{fmtM(c.total_deuda)}</td>
-                    <td className="px-4 py-3 text-right font-bold text-red-800">{fmtM(deudaCritica)}</td>
-                    <td className="px-4 py-3 text-center font-semibold text-gray-700">{fmtPct(participacion, 0)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-4 py-3">
-          <PaginationControls
-            page={Math.min(pageParetoClientes, paretoPages)}
-            pages={paretoPages}
-            onChange={setPageParetoClientes}
-          />
-        </div>
-      </div>
-    </section>
-  )
-}
 
 // ─── Riesgo ────────────────────────────────────────────────────────────────────
 
@@ -513,6 +261,51 @@ const filtrarPorBusqueda = <T extends { cliente_nit?: string; cliente_nombre?: s
   )
 }
 
+// ─── Colores y helpers para Grupos Empresariales ─────────────────────────────
+
+const GRUPO_COLOR: Record<string, string> = {
+  'Grupo Zentria':    '#0f3460',
+  'Grupo SURA':       '#1d4ed8',
+  'Grupo Quirónsalud':'#7c3aed',
+  'Grupo AUNA':       '#0891b2',
+  'Otros':            '#94a3b8',
+}
+const grupoColor = (g: string) => GRUPO_COLOR[g] ?? '#64748b'
+
+// Tooltip Pareto grupos
+const GrupoParetoTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null
+  const d = payload[0]?.payload as GrupoAgregado & { nombre_corto: string }
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[230px]">
+      <p className="font-extrabold text-gray-900 mb-2">{d.grupo}</p>
+      <p className="text-slate-700">Cartera: <strong>{fmtCOPShort(d.total_deuda)}</strong></p>
+      {d.ventas_anio > 0 && <p className="text-emerald-700">Ventas: <strong>{fmtCOPShort(d.ventas_anio)}</strong></p>}
+      {d.ratio_cartera_ventas != null && <p className="text-orange-600">Ratio C/V: <strong>{d.ratio_cartera_ventas}%</strong></p>}
+      {d.dias_cartera != null && <p className="text-indigo-600">Días cartera: <strong>{d.dias_cartera}d</strong></p>}
+      <p className="text-blue-600 mt-1">% del total: <strong>{d.porcentaje}%</strong></p>
+      <p className="text-purple-700">Acumulado: <strong>{d.porcentaje_acumulado}%</strong></p>
+    </div>
+  )
+}
+
+// Tooltip Pareto clientes (micro)
+const ClienteParetoTooltip = ({ active, payload }: any) => {
+  if (!active || !payload?.length) return null
+  const d = payload[0]?.payload as ParetoClienteItem & { nombre_corto: string }
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[240px]">
+      <p className="font-extrabold text-gray-900 mb-1 break-words whitespace-normal">{d.cliente_nombre}</p>
+      <p className="text-xs text-gray-500 mb-2">{d.grupo} · {d.ciudad || '—'}</p>
+      <p className="text-slate-700">Cartera: <strong>{fmtCOPShort(d.total_deuda)}</strong></p>
+      {d.ventas_anio > 0 && <p className="text-emerald-700">Ventas: <strong>{fmtCOPShort(d.ventas_anio)}</strong></p>}
+      {d.ratio_cartera_ventas != null && <p className="text-orange-600">Ratio C/V: <strong>{d.ratio_cartera_ventas}%</strong></p>}
+      {d.dias_cartera != null && <p className="text-indigo-600">Días cartera: <strong>{d.dias_cartera}d</strong></p>}
+      <p className="text-purple-700 mt-1">% acumulado: <strong>{d.porcentaje_acumulado}%</strong></p>
+    </div>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export const CarteraInforme = () => {
@@ -523,6 +316,9 @@ export const CarteraInforme = () => {
   const [expRegiones,        setExpRegiones]        = useState<Set<string>>(new Set())
   const [expRegionesCiudades,setExpRegionesCiudades]= useState<Set<string>>(new Set())
   const [expComerciales,     setExpComerciales]     = useState<Set<string>>(new Set())
+  const [expGrupos,          setExpGrupos]          = useState<Set<string>>(new Set())
+  const [tabGrupos,          setTabGrupos]          = useState<'pareto' | 'detalle' | 'edades'>('pareto')
+  const [vistaPareto,        setVistaPareto]        = useState<'macro' | 'micro'>('macro')
   const [filtroRiesgo,       setFiltroRiesgo]       = useState<string>('todos')
   const [pageCarteraEdades,  setPageCarteraEdades]  = useState(1)
   const [pageProximos,       setPageProximos]       = useState(1)
@@ -540,6 +336,13 @@ export const CarteraInforme = () => {
   const proximosQ = useQuery({ queryKey: ['proximos'],             queryFn: getProximosVencimientos })
   const regionesQ = useQuery({ queryKey: ['regiones', filtro],    queryFn: () => getCarteraRegiones(filtro) })
   const comercQ   = useQuery({ queryKey: ['comerciales', filtro], queryFn: () => getCarteraLineas(filtro) })
+  const anioVentasParam = filtro.fecha_hasta
+    ? parseInt(filtro.fecha_hasta.slice(0, 4), 10)
+    : new Date().getFullYear()
+  const gruposQ = useQuery({
+    queryKey: ['grupos', filtro, anioVentasParam],
+    queryFn:  () => getCarteraGrupos({ ...filtro, anio_ventas: anioVentasParam }),
+  })
 
   const toggleSet = (set: Set<string>, key: string) => {
     const s = new Set(set)
@@ -555,6 +358,7 @@ export const CarteraInforme = () => {
     setExpRegiones(new Set())
     setExpRegionesCiudades(new Set())
     setExpComerciales(new Set())
+    setExpGrupos(new Set())
     setPageCarteraEdades(1)
     setPageProximos(1)
     setPageRegiones(1)
@@ -568,6 +372,12 @@ export const CarteraInforme = () => {
   const proximos   = proximosQ.data?.proximos_vencimientos ?? []
   const regiones   = regionesQ.data?.regiones ?? []
   const comerciales= comercQ.data?.lineas ?? comercQ.data?.comerciales ?? []
+  const gruposData      = gruposQ.data
+  const grupos          = gruposData?.grupos ?? []             // ordenados por deuda desc (Pareto)
+  const gruposPorPeso   = [...grupos].sort((a, b) => a.peso - b.peso)  // para tabla/cards
+  const paretoClientes  = gruposData?.pareto_clientes ?? []
+  const totalVentas     = gruposData?.total_ventas ?? 0
+  const anioVentas      = gruposData?.anio_ventas ?? anioVentasParam
 
   // KPIs
   const totalCartera = cartera.reduce((s, c) => s + c.total_deuda, 0)
@@ -622,13 +432,14 @@ export const CarteraInforme = () => {
   const comercialesPages = totalPages(comercialesFiltrados.length)
   const comercialesPageItems = paginate(comercialesFiltrados, Math.min(pageComerciales, comercialesPages))
 
-  const cargando = carteraQ.isLoading || proximosQ.isLoading || regionesQ.isLoading || comercQ.isLoading
-  const actualizandoFiltros = carteraQ.isFetching || proximosQ.isFetching || regionesQ.isFetching || comercQ.isFetching
+  const cargando = carteraQ.isLoading || proximosQ.isLoading || regionesQ.isLoading || comercQ.isLoading || gruposQ.isLoading
+  const actualizandoFiltros = carteraQ.isFetching || proximosQ.isFetching || regionesQ.isFetching || comercQ.isFetching || gruposQ.isFetching
   const dataError =
     (carteraQ.error as AxiosError<{ message?: string; error?: string }>) ||
     (proximosQ.error as AxiosError<{ message?: string; error?: string }>) ||
     (regionesQ.error as AxiosError<{ message?: string; error?: string }>) ||
-    (comercQ.error as AxiosError<{ message?: string; error?: string }>)
+    (comercQ.error as AxiosError<{ message?: string; error?: string }>) ||
+    (gruposQ.error as AxiosError<{ message?: string; error?: string }>)
   const errorMsg =
     dataError?.response?.data?.message ||
     dataError?.response?.data?.error ||
@@ -644,7 +455,7 @@ export const CarteraInforme = () => {
           {/* Título */}
           <div className="min-w-[200px]">
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight">
-              Informe de Cartera — Grupo RP
+              INFORME DE CARTERA — GRUPO RP
             </h1>
             {fechaCorte && (
                 <span className="text-xs text-white/60 mt-0.5 block">
@@ -723,9 +534,468 @@ export const CarteraInforme = () => {
         <div className="space-y-10 px-6 lg:px-10 pb-16">
 
           {/* ══════════════════════════════════════════════════════════════
-              PARETO
+              SECCIÓN — GRUPOS EMPRESARIALES
           ══════════════════════════════════════════════════════════════ */}
-          <SeccionPareto cartera={cartera} totalCartera={totalCartera} />
+          {(grupos.length > 0 || gruposQ.isLoading) && (
+          <section className="bg-white rounded-2xl shadow-sm p-7">
+            <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
+              <SectionHeader
+                icon={<UserCheck className="h-7 w-7" />}
+                title="GRUPOS EMPRESARIALES"
+                count={`${grupos.filter(g => g.grupo !== 'Otros').length} grupos prioritarios`}
+                color="indigo"
+              />
+              {totalVentas > 0 && (
+                <div className="text-right shrink-0">
+                  <p className="text-xs text-gray-500 font-medium">Ventas {anioVentas}</p>
+                  <p className="text-lg font-extrabold text-emerald-700">{fmtM(totalVentas)}</p>
+                </div>
+              )}
+            </div>
+
+            {/* Tabs */}
+            <div className="flex gap-1 mb-6 border-b border-gray-200">
+              {([
+                { key: 'pareto',  label: 'Pareto & Rentabilidad' },
+                { key: 'detalle', label: 'Detalle por grupo' },
+                { key: 'edades',  label: 'Edades de cartera' },
+              ] as const).map(t => (
+                <button key={t.key} onClick={() => setTabGrupos(t.key)}
+                  className={`px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${
+                    tabGrupos === t.key
+                      ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
+                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {gruposQ.isLoading && (
+              <div className="flex justify-center py-8"><Spinner className="h-10 w-10" /></div>
+            )}
+
+            {/* ─── TAB: PARETO & RENTABILIDAD ─────────────────────────── */}
+            {tabGrupos === 'pareto' && grupos.length > 0 && (() => {
+              // Datos macro: grupos ya vienen ordenados por deuda desc (Pareto)
+              const macroData = grupos.map(g => ({
+                ...g,
+                nombre_corto: g.grupo.replace('Grupo ', ''),
+              }))
+              // Datos micro: top 30 clientes
+              const microData = paretoClientes.slice(0, 30).map(c => ({
+                ...c,
+                nombre_corto: (() => {
+                  const words = (c.cliente_nombre || '').split(' ')
+                  const short = words.slice(0, 2).join(' ')
+                  return short.length > 16 ? short.slice(0, 15) + '…' : short
+                })(),
+              }))
+              const clientesEn80 = paretoClientes.filter(c => c.porcentaje_acumulado <= 80).length + 1
+              return (
+                <div>
+                  {/* KPIs */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+                    <div className="bg-indigo-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-500 font-medium">Cartera grupos prioritarios</p>
+                      <p className="text-lg font-extrabold text-[#0f3460]">
+                        {fmtM(grupos.filter(g => g.grupo !== 'Otros').reduce((s, g) => s + g.total_deuda, 0))}
+                      </p>
+                    </div>
+                    {totalVentas > 0 && (
+                      <div className="bg-emerald-50 rounded-xl p-3 text-center">
+                        <p className="text-xs text-gray-500 font-medium">Ventas {anioVentas}</p>
+                        <p className="text-lg font-extrabold text-emerald-700">{fmtM(totalVentas)}</p>
+                      </div>
+                    )}
+                    <div className="bg-amber-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-500 font-medium">Instituciones (80% cartera)</p>
+                      <p className="text-lg font-extrabold text-amber-700">{clientesEn80}</p>
+                      <p className="text-xs text-gray-400">de {paretoClientes.length} total</p>
+                    </div>
+                    <div className="bg-red-50 rounded-xl p-3 text-center">
+                      <p className="text-xs text-gray-500 font-medium">Mora +90d (grupos)</p>
+                      <p className="text-lg font-extrabold text-red-700">
+                        {fmtM(grupos.reduce((s, g) => s + g.mora_90, 0))}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Toggle Macro / Micro */}
+                  <div className="flex gap-2 mb-5">
+                    {([
+                      { key: 'macro', label: 'Vista Macro — por grupo' },
+                      { key: 'micro', label: 'Vista Micro — por institución' },
+                    ] as const).map(v => (
+                      <button key={v.key} onClick={() => setVistaPareto(v.key)}
+                        className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
+                          vistaPareto === v.key
+                            ? 'bg-indigo-600 text-white border-indigo-600'
+                            : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'
+                        }`}>
+                        {v.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* ── Macro ── */}
+                  {vistaPareto === 'macro' && (
+                    <div>
+                      <div className="mb-1 text-xs text-gray-400 text-right">
+                        Barras = cartera · Línea = % acumulado · Referencia = 80%
+                      </div>
+                      <ResponsiveContainer width="100%" height={300}>
+                        <ComposedChart data={macroData} margin={{ top: 10, right: 55, left: 10, bottom: 10 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="nombre_corto" tick={{ fontSize: 13, fontWeight: 700 }} />
+                          <YAxis yAxisId="left" tickFormatter={v => fmtM(Number(v))} tick={{ fontSize: 12 }} width={82} />
+                          <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 12 }} width={50} />
+                          <RTooltip content={<GrupoParetoTooltip />} />
+                          <ReferenceLine yAxisId="right" y={80} stroke="#1a1a2e" strokeDasharray="6 3" strokeWidth={2}
+                            label={{ value: '80%', position: 'insideRight', fontSize: 12, fill: '#1a1a2e', fontWeight: 700 }} />
+                          <Bar yAxisId="left" dataKey="total_deuda" radius={[5, 5, 0, 0]} maxBarSize={72} name="Cartera">
+                            {macroData.map((g, i) => <Cell key={i} fill={grupoColor(g.grupo)} />)}
+                          </Bar>
+                          <Line yAxisId="right" type="monotone" dataKey="porcentaje_acumulado"
+                            stroke="#1a1a2e" strokeWidth={3}
+                            dot={{ r: 5, fill: '#1a1a2e', strokeWidth: 0 }} activeDot={{ r: 7 }}
+                            name="% Acumulado" />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+
+                      {/* Leyenda de colores */}
+                      <div className="flex flex-wrap gap-3 mt-2 mb-5 text-xs font-semibold">
+                        {gruposPorPeso.map(g => (
+                          <span key={g.grupo} className="flex items-center gap-1.5">
+                            <span className="w-3 h-3 rounded-sm inline-block" style={{ background: grupoColor(g.grupo) }} />
+                            {g.grupo}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* Tabla rentabilidad macro */}
+                      <div className="overflow-x-auto rounded-xl border border-indigo-200">
+                        <table className="w-full text-sm">
+                          <thead className="bg-[#1a1a2e] text-white text-xs">
+                            <tr>
+                              <th className="px-4 py-2.5 text-left">Grupo</th>
+                              <th className="px-4 py-2.5 text-right">Cartera</th>
+                              {totalVentas > 0 && <th className="px-4 py-2.5 text-right">Ventas {anioVentas}</th>}
+                              {totalVentas > 0 && <th className="px-4 py-2.5 text-right" title="Cartera como % de ventas del año">Ratio C/V</th>}
+                              {totalVentas > 0 && <th className="px-4 py-2.5 text-right" title="Días promedio de cobranza (DSO)">Días cob.</th>}
+                              <th className="px-4 py-2.5 text-right">% total</th>
+                              <th className="px-4 py-2.5 text-right">% Acum.</th>
+                              <th className="px-4 py-2.5 text-right">Mora +90d</th>
+                              <th className="px-4 py-2.5 text-center">Inst.</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {gruposPorPeso.map(g => {
+                              const esOtros = g.grupo === 'Otros'
+                              return (
+                                <tr key={g.grupo} className={`border-t border-gray-100 ${esOtros ? 'bg-slate-50 text-gray-400' : 'hover:bg-indigo-50'}`}>
+                                  <td className="px-4 py-2.5">
+                                    <span className="inline-flex items-center gap-2 font-semibold">
+                                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: grupoColor(g.grupo) }} />
+                                      {g.grupo}
+                                    </span>
+                                  </td>
+                                  <td className="px-4 py-2.5 text-right font-extrabold text-[#0f3460]">{fmtM(g.total_deuda)}</td>
+                                  {totalVentas > 0 && <td className="px-4 py-2.5 text-right text-emerald-700 font-semibold">{g.ventas_anio > 0 ? fmtM(g.ventas_anio) : <span className="text-gray-300">—</span>}</td>}
+                                  {totalVentas > 0 && <td className="px-4 py-2.5 text-right">
+                                    {g.ratio_cartera_ventas != null
+                                      ? <span className={`font-bold ${g.ratio_cartera_ventas > 50 ? 'text-red-700' : g.ratio_cartera_ventas > 25 ? 'text-orange-600' : 'text-green-700'}`}>{g.ratio_cartera_ventas}%</span>
+                                      : <span className="text-gray-300">—</span>}
+                                  </td>}
+                                  {totalVentas > 0 && <td className="px-4 py-2.5 text-right">
+                                    {g.dias_cartera != null
+                                      ? <span className={`font-bold ${g.dias_cartera > 180 ? 'text-red-700' : g.dias_cartera > 90 ? 'text-orange-600' : 'text-green-700'}`}>{g.dias_cartera}d</span>
+                                      : <span className="text-gray-300">—</span>}
+                                  </td>}
+                                  <td className="px-4 py-2.5 text-right font-bold text-gray-700">{g.porcentaje}%</td>
+                                  <td className="px-4 py-2.5 text-right font-bold text-purple-700">{g.porcentaje_acumulado}%</td>
+                                  <td className="px-4 py-2.5 text-right font-bold text-red-700">{g.mora_90 > 0 ? fmtM(g.mora_90) : <span className="text-green-600 text-xs">Al día</span>}</td>
+                                  <td className="px-4 py-2.5 text-center text-gray-500">{g.clientes_count}</td>
+                                </tr>
+                              )
+                            })}
+                          </tbody>
+                          <tfoot className="bg-gray-100 border-t-2 border-gray-300 text-xs font-bold">
+                            <tr>
+                              <td className="px-4 py-2.5 text-gray-700">TOTAL</td>
+                              <td className="px-4 py-2.5 text-right text-slate-800">{fmtM(grupos.reduce((s, g) => s + g.total_deuda, 0))}</td>
+                              {totalVentas > 0 && <td className="px-4 py-2.5 text-right text-emerald-700">{fmtM(totalVentas)}</td>}
+                              {totalVentas > 0 && <td colSpan={2} />}
+                              <td className="px-4 py-2.5 text-center text-gray-600">100%</td>
+                              <td />
+                              <td className="px-4 py-2.5 text-right text-red-900">{fmtM(grupos.reduce((s, g) => s + g.mora_90, 0))}</td>
+                              <td className="px-4 py-2.5 text-center text-gray-600">{grupos.reduce((s, g) => s + g.clientes_count, 0)}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Micro ── */}
+                  {vistaPareto === 'micro' && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-xs text-gray-400">Top {microData.length} instituciones por cartera — coloreadas por grupo</span>
+                        <span className="text-xs font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded">
+                          {clientesEn80} inst. concentran el 80% de la deuda
+                        </span>
+                      </div>
+                      <ResponsiveContainer width="100%" height={320}>
+                        <ComposedChart data={microData} margin={{ top: 10, right: 55, left: 10, bottom: 70 }}>
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
+                          <XAxis dataKey="nombre_corto" tick={{ fontSize: 11, fontWeight: 600 }}
+                            angle={-40} textAnchor="end" height={80} interval={0} />
+                          <YAxis yAxisId="left" tickFormatter={v => fmtM(Number(v))} tick={{ fontSize: 11 }} width={82} />
+                          <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 11 }} width={50} />
+                          <RTooltip content={<ClienteParetoTooltip />} />
+                          <ReferenceLine yAxisId="right" y={80} stroke="#1a1a2e" strokeDasharray="6 3" strokeWidth={2}
+                            label={{ value: '80%', position: 'insideRight', fontSize: 12, fill: '#1a1a2e', fontWeight: 700 }} />
+                          <Bar yAxisId="left" dataKey="total_deuda" radius={[4, 4, 0, 0]} maxBarSize={32} name="Cartera">
+                            {microData.map((c, i) => <Cell key={i} fill={grupoColor(c.grupo)} />)}
+                          </Bar>
+                          <Line yAxisId="right" type="monotone" dataKey="porcentaje_acumulado"
+                            stroke="#1a1a2e" strokeWidth={2.5}
+                            dot={{ r: 3, fill: '#1a1a2e', strokeWidth: 0 }} activeDot={{ r: 5 }}
+                            name="% Acumulado" />
+                        </ComposedChart>
+                      </ResponsiveContainer>
+
+                      {/* Tabla micro */}
+                      <div className="overflow-x-auto rounded-xl border border-indigo-200 mt-4">
+                        <table className="w-full text-sm">
+                          <thead className="bg-[#1a1a2e] text-white text-xs">
+                            <tr>
+                              <th className="px-3 py-2.5 text-right w-8">#</th>
+                              <th className="px-4 py-2.5 text-left">Institución</th>
+                              <th className="px-4 py-2.5 text-left">Grupo</th>
+                              <th className="px-4 py-2.5 text-left">Ciudad</th>
+                              <th className="px-4 py-2.5 text-right">Cartera</th>
+                              {totalVentas > 0 && <th className="px-4 py-2.5 text-right">Ventas</th>}
+                              {totalVentas > 0 && <th className="px-4 py-2.5 text-right" title="Días de cobranza">Días cob.</th>}
+                              <th className="px-4 py-2.5 text-right">Mora +90d</th>
+                              <th className="px-4 py-2.5 text-right">%</th>
+                              <th className="px-4 py-2.5 text-right">% Acum.</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paretoClientes.map((c, i) => (
+                              <tr key={`${c.cliente_nit}-${i}`}
+                                className={`border-t border-gray-100 hover:bg-indigo-50 transition-colors ${c.porcentaje_acumulado > 80 ? 'opacity-50' : ''}`}>
+                                <td className="px-3 py-2 text-right text-gray-400 font-mono text-xs">{i + 1}</td>
+                                <td className="px-4 py-2 font-semibold text-gray-900 max-w-[200px] truncate">{c.cliente_nombre}</td>
+                                <td className="px-4 py-2">
+                                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: grupoColor(c.grupo) }}>
+                                    <span className="w-2 h-2 rounded-full" style={{ background: grupoColor(c.grupo) }} />
+                                    {c.grupo.replace('Grupo ', '')}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-2 text-gray-500 text-xs">{c.ciudad || '—'}</td>
+                                <td className="px-4 py-2 text-right font-extrabold text-[#0f3460]">{fmtM(c.total_deuda)}</td>
+                                {totalVentas > 0 && <td className="px-4 py-2 text-right text-emerald-700">{c.ventas_anio > 0 ? fmtM(c.ventas_anio) : <span className="text-gray-300">—</span>}</td>}
+                                {totalVentas > 0 && <td className="px-4 py-2 text-right">
+                                  {c.dias_cartera != null
+                                    ? <span className={`font-bold text-xs ${c.dias_cartera > 180 ? 'text-red-700' : c.dias_cartera > 90 ? 'text-orange-600' : 'text-green-700'}`}>{c.dias_cartera}d</span>
+                                    : <span className="text-gray-300">—</span>}
+                                </td>}
+                                <td className="px-4 py-2 text-right font-bold text-red-700">{c.mora_90 > 0 ? fmtM(c.mora_90) : <span className="text-green-600 text-xs">—</span>}</td>
+                                <td className="px-4 py-2 text-right text-gray-600 text-xs">{c.porcentaje}%</td>
+                                <td className="px-4 py-2 text-right font-bold text-purple-700">{c.porcentaje_acumulado}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
+
+            {/* ─── TAB: DETALLE POR GRUPO ──────────────────────────────── */}
+            {tabGrupos === 'detalle' && (
+              <div className="space-y-4">
+                {gruposPorPeso.map((g: GrupoAgregado) => {
+                  const isOpen = expGrupos.has(g.grupo)
+                  const esOtros = g.grupo === 'Otros'
+                  const pctVenc = g.total_deuda > 0 ? (g.total_vencida / g.total_deuda) * 100 : 0
+                  const badgeVenc = pctVenc > 60 ? 'bg-red-100 text-red-800' : pctVenc > 30 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                  const headerBg = esOtros ? 'bg-slate-50' : 'bg-indigo-50'
+                  const borderColor = esOtros ? 'border-slate-200' : 'border-indigo-200'
+
+                  return (
+                    <div key={g.grupo} className={`border ${borderColor} rounded-2xl overflow-hidden shadow-sm`}>
+                      <button onClick={() => setExpGrupos(prev => toggleSet(prev, g.grupo))} className="w-full text-left">
+                        <div className={`flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-3 px-5 py-4 ${headerBg} hover:opacity-90 transition-colors`}>
+                          {isOpen
+                            ? <ChevronDown className="h-5 w-5 shrink-0" style={{ color: grupoColor(g.grupo) }} />
+                            : <ChevronRight className="h-5 w-5 shrink-0" style={{ color: grupoColor(g.grupo) }} />}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-lg sm:text-xl font-extrabold text-gray-900 flex items-center gap-2">
+                              <span className="w-3 h-3 rounded-full shrink-0" style={{ background: grupoColor(g.grupo) }} />
+                              {g.grupo}
+                            </p>
+                            <p className="text-sm text-gray-500 mt-0.5">
+                              {g.clientes_count} {g.clientes_count === 1 ? 'institución' : 'instituciones'}
+                            </p>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full sm:w-auto sm:min-w-[440px]">
+                            <div className="text-right bg-white rounded-lg px-2 py-1.5">
+                              <p className="text-xs text-gray-500 font-medium">Total cartera</p>
+                              <p className="text-xl font-extrabold text-[#0f3460]">{fmtM(g.total_deuda)}</p>
+                            </div>
+                            <div className="text-right bg-white rounded-lg px-2 py-1.5">
+                              <p className="text-xs text-gray-500 font-medium">Mora +90d</p>
+                              <p className={`text-lg font-bold ${g.mora_90 > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                                {g.mora_90 > 0 ? fmtM(g.mora_90) : 'Al día'}
+                              </p>
+                            </div>
+                            <div className="text-right bg-white rounded-lg px-2 py-1.5">
+                              <p className="text-xs text-gray-500 font-medium">% Vencida</p>
+                              <span className={`px-2.5 py-1 rounded-full text-sm font-bold ${badgeVenc}`}>
+                                {pctVenc.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="text-right bg-white rounded-lg px-2 py-1.5">
+                              <p className="text-xs text-gray-500 font-medium">% del total</p>
+                              <p className="text-base font-bold text-gray-700">{g.porcentaje}%</p>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+
+                      {isOpen && (
+                        <div className="border-t border-indigo-200 bg-white">
+                          <div className="px-5 py-3 bg-indigo-100 flex items-center justify-between">
+                            <span className="text-sm font-bold text-indigo-800 uppercase tracking-wide">
+                              INSTITUCIONES — {g.grupo.toUpperCase()}
+                            </span>
+                            <span className="text-xs text-indigo-600 font-semibold">Mayor a menor deuda</span>
+                          </div>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead className="bg-indigo-200 text-indigo-900">
+                                <tr>
+                                  <th className="px-5 py-2 text-left w-8">#</th>
+                                  <th className="px-4 py-2 text-left">Institución</th>
+                                  <th className="px-4 py-2 text-left">NIT</th>
+                                  <th className="px-4 py-2 text-left">Ciudad</th>
+                                  <th className="px-4 py-2 text-right">Cartera</th>
+                                  <th className="px-4 py-2 text-right">Vigente</th>
+                                  <th className="px-4 py-2 text-right">Vencida</th>
+                                  <th className="px-4 py-2 text-right">+90d</th>
+                                  {totalVentas > 0 && <th className="px-4 py-2 text-right">Ventas</th>}
+                                  {totalVentas > 0 && <th className="px-4 py-2 text-right" title="Días de cobranza">Días cob.</th>}
+                                  <th className="px-4 py-2 text-center">Mora máx.</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {g.clientes.map((cl, ci) => (
+                                  <tr key={cl.cliente_nit} className="border-t border-indigo-100 hover:bg-indigo-50 transition-colors">
+                                    <td className="px-5 py-3 text-gray-400 font-mono text-xs">{ci + 1}</td>
+                                    <td className="px-4 py-3 font-semibold text-gray-900">{cl.cliente_nombre}</td>
+                                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{cl.cliente_nit}</td>
+                                    <td className="px-4 py-3 text-gray-600">{cl.ciudad || '—'}</td>
+                                    <td className="px-4 py-3 text-right font-extrabold text-[#0f3460]">{fmtM(cl.total_deuda)}</td>
+                                    <td className="px-4 py-3 text-right text-green-700 font-semibold">{fmtM(cl.vigente)}</td>
+                                    <td className="px-4 py-3 text-right text-orange-600 font-semibold">{fmtM(cl.total_vencida)}</td>
+                                    <td className="px-4 py-3 text-right text-red-900 font-bold">{fmtM(cl.mora_90)}</td>
+                                    {totalVentas > 0 && <td className="px-4 py-3 text-right text-emerald-700">{cl.ventas_anio > 0 ? fmtM(cl.ventas_anio) : <span className="text-gray-300 text-xs">—</span>}</td>}
+                                    {totalVentas > 0 && <td className="px-4 py-3 text-right">
+                                      {cl.dias_cartera != null
+                                        ? <span className={`font-bold text-xs ${cl.dias_cartera > 180 ? 'text-red-700' : cl.dias_cartera > 90 ? 'text-orange-600' : 'text-green-700'}`}>{cl.dias_cartera}d</span>
+                                        : <span className="text-gray-300 text-xs">—</span>}
+                                    </td>}
+                                    <td className="px-4 py-3 text-center">
+                                      {cl.dias_mora_max > 0
+                                        ? <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-bold">{cl.dias_mora_max}d</span>
+                                        : <span className="text-green-600 text-xs font-semibold">Al día</span>
+                                      }
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                              <tfoot className="bg-indigo-200 border-t-2 border-indigo-300">
+                                <tr>
+                                  <td colSpan={4} className="px-5 py-2 font-bold text-indigo-900 text-xs uppercase">
+                                    Total {g.grupo} · {g.clientes_count} instituciones
+                                  </td>
+                                  <td className="px-4 py-2 text-right font-extrabold text-[#0f3460]">{fmtM(g.total_deuda)}</td>
+                                  <td className="px-4 py-2 text-right text-green-800 font-bold">{fmtM(g.vigente)}</td>
+                                  <td className="px-4 py-2 text-right text-orange-700 font-bold">{fmtM(g.total_vencida)}</td>
+                                  <td className="px-4 py-2 text-right text-red-900 font-bold">{fmtM(g.mora_90)}</td>
+                                  {totalVentas > 0 && <td className="px-4 py-2 text-right text-emerald-700 font-bold">{g.ventas_anio > 0 ? fmtM(g.ventas_anio) : ''}</td>}
+                                  {totalVentas > 0 && <td />}
+                                  <td />
+                                </tr>
+                              </tfoot>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* ─── TAB: EDADES DE CARTERA ──────────────────────────────── */}
+            {tabGrupos === 'edades' && (
+              <div className="border border-indigo-200 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-[#1a1a2e] text-white text-xs">
+                      <tr>
+                        <th className="px-4 py-2.5 text-left">Grupo</th>
+                        <th className="px-4 py-2.5 text-right">Total</th>
+                        <th className="px-4 py-2.5 text-right">Vigente</th>
+                        <th className="px-4 py-2.5 text-right">1–30d</th>
+                        <th className="px-4 py-2.5 text-right">31–60d</th>
+                        <th className="px-4 py-2.5 text-right">61–90d</th>
+                        <th className="px-4 py-2.5 text-right">+90d</th>
+                        <th className="px-4 py-2.5 text-center">% total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {gruposPorPeso.map((g: GrupoAgregado) => (
+                        <tr key={g.grupo} className={`border-t border-gray-100 ${g.grupo === 'Otros' ? 'bg-slate-50 text-gray-500' : 'hover:bg-indigo-50'}`}>
+                          <td className="px-4 py-2.5 font-semibold flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: grupoColor(g.grupo) }} />
+                            {g.grupo}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-extrabold text-[#0f3460]">{fmtM(g.total_deuda)}</td>
+                          <td className="px-4 py-2.5 text-right text-green-700 font-semibold">{fmtM(g.vigente)}</td>
+                          <td className="px-4 py-2.5 text-right text-blue-600">{fmtM(g.dias_1_30)}</td>
+                          <td className="px-4 py-2.5 text-right text-yellow-700">{fmtM(g.dias_31_60)}</td>
+                          <td className="px-4 py-2.5 text-right text-orange-600">{fmtM(g.dias_61_90)}</td>
+                          <td className="px-4 py-2.5 text-right text-red-800 font-bold">{fmtM(g.dias_91_mas)}</td>
+                          <td className="px-4 py-2.5 text-center font-bold text-gray-700">{g.porcentaje}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-gray-100 border-t-2 border-gray-300 text-xs font-bold">
+                      <tr>
+                        <td className="px-4 py-2.5 text-gray-700">TOTAL GENERAL</td>
+                        <td className="px-4 py-2.5 text-right text-slate-800">{fmtM(grupos.reduce((s, g) => s + g.total_deuda, 0))}</td>
+                        <td className="px-4 py-2.5 text-right text-green-800">{fmtM(grupos.reduce((s, g) => s + g.vigente, 0))}</td>
+                        <td className="px-4 py-2.5 text-right text-blue-700">{fmtM(grupos.reduce((s, g) => s + g.dias_1_30, 0))}</td>
+                        <td className="px-4 py-2.5 text-right text-yellow-800">{fmtM(grupos.reduce((s, g) => s + g.dias_31_60, 0))}</td>
+                        <td className="px-4 py-2.5 text-right text-orange-700">{fmtM(grupos.reduce((s, g) => s + g.dias_61_90, 0))}</td>
+                        <td className="px-4 py-2.5 text-right text-red-900">{fmtM(grupos.reduce((s, g) => s + g.dias_91_mas, 0))}</td>
+                        <td className="px-4 py-2.5 text-center text-gray-700">100%</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
+          </section>
+          )}
 
           {/* ══════════════════════════════════════════════════════════════
               SECCIÓN 1 — CARTERA POR EDADES
@@ -1138,7 +1408,7 @@ export const CarteraInforme = () => {
           </section>
 
           {/* ══════════════════════════════════════════════════════════════
-              SECCIÓN 4 — CARTERA POR COMERCIAL
+              SECCIÓN 4 — CARTERA POR LÍNEA
           ══════════════════════════════════════════════════════════════ */}
           <section className="bg-white rounded-2xl shadow-sm p-7">
             <SectionHeader

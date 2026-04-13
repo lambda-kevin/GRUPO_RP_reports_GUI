@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { DashboardResumen, SnapBancos, SnapCartera, LogEnvio, Factura, CiudadAgregada, ProximoVencimiento, AnalisisIA, LineaAgregada, GrupoAgregado, RegionAgregada, DashboardBancosRespuesta, DashboardTesoreriaRespuesta } from '../types'
+import type { DashboardResumen, SnapBancos, SnapCartera, LogEnvio, Factura, CiudadAgregada, ProximoVencimiento, AnalisisIA, LineaAgregada, GrupoAgregado, ParetoClienteItem, RegionAgregada, DashboardBancosRespuesta, DashboardTesoreriaRespuesta } from '../types'
 
 export type FiltroFecha = { fecha?: string; fecha_desde?: string; fecha_hasta?: string }
 
@@ -70,10 +70,15 @@ export const getCarteraLineas = async (filtro?: FiltroFecha): Promise<{
 /** @deprecated Usar getCarteraLineas */
 export const getCarteraComerciales = getCarteraLineas
 
-export const getCarteraGrupos = async (filtro?: FiltroFecha): Promise<{
+export const getCarteraGrupos = async (
+  filtro?: FiltroFecha & { anio_ventas?: number },
+): Promise<{
   fecha_corte: string
-  grupos: GrupoAgregado[]
+  anio_ventas: number
+  grupos: GrupoAgregado[]           // ordenados por deuda desc (Pareto)
   total_general: number
+  total_ventas: number
+  pareto_clientes: ParetoClienteItem[]
 }> => {
   const { data } = await apiClient.get('/cartera/grupos/', { params: filtro ?? {} })
   return data
