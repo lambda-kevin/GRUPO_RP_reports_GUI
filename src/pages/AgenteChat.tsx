@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import {
   Send, Plus, Trash2, MessageSquare, Bot, User, Loader2,
   Sparkles, TrendingUp, AlertTriangle, BarChart2, Users,
@@ -621,17 +623,6 @@ export const AgenteChat = () => {
 const ChatMessage = ({ mensaje }: { mensaje: Mensaje }) => {
   const isUser = mensaje.role === 'user'
 
-  // Renderizar markdown básico (negrita y saltos de línea)
-  const renderContenido = (texto: string) => {
-    const partes = texto.split(/(\*\*[^*]+\*\*)/g)
-    return partes.map((parte, i) => {
-      if (parte.startsWith('**') && parte.endsWith('**')) {
-        return <strong key={i}>{parte.slice(2, -2)}</strong>
-      }
-      return <span key={i}>{parte}</span>
-    })
-  }
-
   return (
     <div className={clsx('flex items-start gap-3', isUser && 'flex-row-reverse')}>
       <div className={clsx(
@@ -648,7 +639,25 @@ const ChatMessage = ({ mensaje }: { mensaje: Mensaje }) => {
           ? 'bg-green-700 text-white rounded-tr-none'
           : 'bg-white border border-gray-200 text-gray-800 rounded-tl-none shadow-sm'
       )}>
-        <div className="whitespace-pre-wrap">{renderContenido(mensaje.contenido)}</div>
+        {isUser ? (
+          <div className="whitespace-pre-wrap">{mensaje.contenido}</div>
+        ) : (
+          <div className="max-w-none text-[14px] leading-relaxed
+            [&>*:first-child]:mt-0 [&>*:last-child]:mb-0
+            [&_p]:my-2 [&_h1]:my-2 [&_h2]:my-2 [&_h3]:my-2
+            [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5
+            [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5
+            [&_li]:my-1 [&_blockquote]:border-l-4 [&_blockquote]:border-green-200 [&_blockquote]:pl-3 [&_blockquote]:italic
+            [&_code]:rounded [&_code]:bg-gray-100 [&_code]:px-1 [&_code]:py-0.5
+            [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-gray-900 [&_pre]:p-3 [&_pre]:text-gray-100
+            [&_table]:my-3 [&_table]:w-full [&_table]:border-collapse
+            [&_th]:border [&_th]:border-gray-300 [&_th]:bg-gray-50 [&_th]:px-2 [&_th]:py-1 [&_th]:text-left
+            [&_td]:border [&_td]:border-gray-300 [&_td]:px-2 [&_td]:py-1">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+              {mensaje.contenido}
+            </ReactMarkdown>
+          </div>
+        )}
         <div className={clsx('text-[11px] mt-2 flex items-center gap-2', isUser ? 'text-green-200' : 'text-gray-400')}>
           <span>{format(new Date(mensaje.created_at), 'HH:mm', { locale: es })}</span>
           {!isUser && (mensaje.tokens_usados ?? 0) > 0 && (
