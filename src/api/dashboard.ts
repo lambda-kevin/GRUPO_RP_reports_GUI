@@ -27,6 +27,84 @@ export const getDashboardTesoreria = async (params?: {
   return data
 }
 
+export const enviarReporteCartera = async (): Promise<{ ok: boolean; mensaje: string }> => {
+  const { data } = await apiClient.post('/cartera/enviar-reporte/')
+  return data
+}
+
+export type Destinatario = {
+  id: string
+  destinatario: string
+  rol: string
+  activo: boolean
+}
+
+export const getDestinatariosCartera = async (): Promise<Destinatario[]> => {
+  const { data } = await apiClient.get('/cartera/destinatarios/')
+  return data
+}
+
+export const crearDestinatarioCartera = async (payload: { destinatario: string; rol?: string }): Promise<Destinatario> => {
+  const { data } = await apiClient.post('/cartera/destinatarios/', payload)
+  return data
+}
+
+export const toggleDestinatarioCartera = async (id: string): Promise<Destinatario> => {
+  const { data } = await apiClient.patch(`/cartera/destinatarios/${id}/`)
+  return data
+}
+
+export const eliminarDestinatarioCartera = async (id: string): Promise<void> => {
+  await apiClient.delete(`/cartera/destinatarios/${id}/`)
+}
+
+// ── Grupos empresariales ─────────────────────────────────────────────────────
+
+export type MiembroGrupo = {
+  id: string
+  nombre_cliente: string
+  activo: boolean
+}
+
+export type GrupoEmpresarial = {
+  id: string
+  nombre: string
+  peso: number
+  activo: boolean
+  miembros: MiembroGrupo[]
+}
+
+export const getGruposEmpresariales = async (): Promise<GrupoEmpresarial[]> => {
+  const { data } = await apiClient.get('/grupos-empresariales/')
+  return data
+}
+
+export const crearGrupoEmpresarial = async (payload: { nombre: string; peso?: number }): Promise<GrupoEmpresarial> => {
+  const { data } = await apiClient.post('/grupos-empresariales/', payload)
+  return data
+}
+
+export const actualizarGrupoEmpresarial = async (
+  id: string,
+  payload: { nombre?: string; peso?: number; activo?: boolean }
+): Promise<GrupoEmpresarial> => {
+  const { data } = await apiClient.patch(`/grupos-empresariales/${id}/`, payload)
+  return data
+}
+
+export const eliminarGrupoEmpresarial = async (id: string): Promise<void> => {
+  await apiClient.delete(`/grupos-empresariales/${id}/`)
+}
+
+export const agregarMiembroGrupo = async (grupoId: string, nombre_cliente: string): Promise<MiembroGrupo> => {
+  const { data } = await apiClient.post(`/grupos-empresariales/${grupoId}/miembros/`, { nombre_cliente })
+  return data
+}
+
+export const eliminarMiembroGrupo = async (grupoId: string, miembroId: string): Promise<void> => {
+  await apiClient.delete(`/grupos-empresariales/${grupoId}/miembros/${miembroId}/`)
+}
+
 export const getBancos = async (fecha?: string): Promise<SnapBancos[]> => {
   const params = fecha ? { fecha } : {}
   const { data } = await apiClient.get('/bancos/', { params })

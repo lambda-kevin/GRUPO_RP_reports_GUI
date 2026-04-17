@@ -1,25 +1,31 @@
-import { useState, Fragment, type ReactNode } from 'react'
+import { useState, useRef, useEffect, Fragment, type ReactNode } from 'react'
 import {
   ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis,
   CartesianGrid, Tooltip as RTooltip, ReferenceLine, Cell,
 } from 'recharts'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { AxiosError } from 'axios'
 import {
   Wallet,
   AlertTriangle, Clock, DollarSign, ChevronDown, ChevronRight,
-  Calendar, MapPin, UserCheck, Search, ShieldAlert, CheckCircle,
+  Calendar, MapPin, UserCheck, Search, ShieldAlert, CheckCircle, Mail,
+  Settings, X, Trash2, ToggleLeft, ToggleRight, UserPlus, Building2, ChevronUp,
 } from 'lucide-react'
 import {
   getCartera, getProximosVencimientos,
-  getCarteraLineas, getCarteraRegiones, getFacturas, getCarteraGrupos,
-  type FiltroFecha,
+  getCarteraRegiones, getFacturas, getCarteraGrupos,
+  enviarReporteCartera,
+  getDestinatariosCartera, crearDestinatarioCartera,
+  toggleDestinatarioCartera, eliminarDestinatarioCartera,
+  getGruposEmpresariales, crearGrupoEmpresarial, eliminarGrupoEmpresarial,
+  actualizarGrupoEmpresarial, agregarMiembroGrupo, eliminarMiembroGrupo,
+  type FiltroFecha, type Destinatario, type GrupoEmpresarial as GrupoEmpresarialAPI,
 } from '../api/dashboard'
 import { Spinner } from '../components/ui/Spinner'
 import { fmtCOP, fmtCOPShort, fmtPct } from '../utils/fmt'
 import type {
   SnapCartera, Factura, ProximoVencimiento,
-  CiudadAgregada, LineaAgregada, RegionAgregada, GrupoAgregado, ParetoClienteItem,
+  CiudadAgregada, RegionAgregada, GrupoAgregado, ParetoClienteItem,
 } from '../types'
 
 // Aliases locales para uso conciso en este módulo
@@ -281,7 +287,6 @@ const GrupoParetoTooltip = ({ active, payload }: any) => {
       <p className="font-extrabold text-gray-900 mb-2">{d.grupo}</p>
       <p className="text-slate-700">Cartera: <strong>{fmtCOPShort(d.total_deuda)}</strong></p>
       {d.ventas_anio > 0 && <p className="text-emerald-700">Ventas: <strong>{fmtCOPShort(d.ventas_anio)}</strong></p>}
-      {d.ratio_cartera_ventas != null && <p className="text-orange-600">Ratio C/V: <strong>{d.ratio_cartera_ventas}%</strong></p>}
       {d.dias_cartera != null && <p className="text-indigo-600">Días cartera: <strong>{d.dias_cartera}d</strong></p>}
       <p className="text-blue-600 mt-1">% del total: <strong>{d.porcentaje}%</strong></p>
       <p className="text-purple-700">Acumulado: <strong>{d.porcentaje_acumulado}%</strong></p>
@@ -299,7 +304,6 @@ const ClienteParetoTooltip = ({ active, payload }: any) => {
       <p className="text-xs text-gray-500 mb-2">{d.grupo} · {d.ciudad || '—'}</p>
       <p className="text-slate-700">Cartera: <strong>{fmtCOPShort(d.total_deuda)}</strong></p>
       {d.ventas_anio > 0 && <p className="text-emerald-700">Ventas: <strong>{fmtCOPShort(d.ventas_anio)}</strong></p>}
-      {d.ratio_cartera_ventas != null && <p className="text-orange-600">Ratio C/V: <strong>{d.ratio_cartera_ventas}%</strong></p>}
       {d.dias_cartera != null && <p className="text-indigo-600">Días cartera: <strong>{d.dias_cartera}d</strong></p>}
       <p className="text-purple-700 mt-1">% acumulado: <strong>{d.porcentaje_acumulado}%</strong></p>
     </div>
@@ -315,27 +319,194 @@ export const CarteraInforme = () => {
   const [expClientes,        setExpClientes]        = useState<Set<string>>(new Set())
   const [expRegiones,        setExpRegiones]        = useState<Set<string>>(new Set())
   const [expRegionesCiudades,setExpRegionesCiudades]= useState<Set<string>>(new Set())
-  const [expComerciales,     setExpComerciales]     = useState<Set<string>>(new Set())
   const [expGrupos,          setExpGrupos]          = useState<Set<string>>(new Set())
+
   const [tabGrupos,          setTabGrupos]          = useState<'pareto' | 'detalle' | 'edades'>('pareto')
   const [vistaPareto,        setVistaPareto]        = useState<'macro' | 'micro'>('macro')
   const [filtroRiesgo,       setFiltroRiesgo]       = useState<string>('todos')
   const [pageCarteraEdades,  setPageCarteraEdades]  = useState(1)
   const [pageProximos,       setPageProximos]       = useState(1)
   const [pageRegiones,       setPageRegiones]       = useState(1)
-  const [pageComerciales,    setPageComerciales]    = useState(1)
+
   // Búsqueda por sección
   const [busEdades,      setBusEdades]      = useState('')
   const [busRegiones,    setBusRegiones]    = useState('')
-  const [busComerciales, setBusComerciales] = useState('')
+
   // Orden
   const [ordenEdades,   setOrdenEdades]   = useState<'az' | 'deuda'>('az')
-  const [ordenLineas,   setOrdenLineas]   = useState<'az' | 'deuda'>('az')
 
-  const carteraQ  = useQuery({ queryKey: ['cartera', filtro],     queryFn: () => getCartera(filtro) })
-  const proximosQ = useQuery({ queryKey: ['proximos'],             queryFn: getProximosVencimientos })
-  const regionesQ = useQuery({ queryKey: ['regiones', filtro],    queryFn: () => getCarteraRegiones(filtro) })
-  const comercQ   = useQuery({ queryKey: ['comerciales', filtro], queryFn: () => getCarteraLineas(filtro) })
+  // Estado botón envío de reporte
+  const [enviando,       setEnviando]       = useState(false)
+  const [enviado,        setEnviado]        = useState(false)
+  const [errorEnvio,     setErrorEnvio]     = useState<string | null>(null)
+
+  // Dropdown "Configurar"
+  const [showConfigMenu, setShowConfigMenu] = useState(false)
+  const configMenuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!showConfigMenu) return
+    const handler = (e: MouseEvent) => {
+      if (configMenuRef.current && !configMenuRef.current.contains(e.target as Node)) {
+        setShowConfigMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showConfigMenu])
+
+  // Estado modal grupos empresariales
+  const [showGrupos,        setShowGrupos]        = useState(false)
+  const [nuevoGrupo,        setNuevoGrupo]        = useState('')
+  const [nuevoPeso,         setNuevoPeso]         = useState<number>(99)
+  const [addingGrupo,       setAddingGrupo]       = useState(false)
+  const [errorGrupos,       setErrorGrupos]       = useState<string | null>(null)
+  const [expandedGrupo,     setExpandedGrupo]     = useState<string | null>(null)
+  const [nuevoMiembro,      setNuevoMiembro]      = useState('')
+  const [addingMiembro,     setAddingMiembro]     = useState<string | null>(null)
+  const [deletingGrupoId,   setDeletingGrupoId]   = useState<string | null>(null)
+  const [deletingMiembroId, setDeletingMiembroId] = useState<string | null>(null)
+
+  // Estado modal destinatarios
+  const [showDest,       setShowDest]       = useState(false)
+  const [nuevoEmail,     setNuevoEmail]     = useState('')
+  const [nuevoRol,       setNuevoRol]       = useState('')
+  const [addingDest,     setAddingDest]     = useState(false)
+  const [errorDest,      setErrorDest]      = useState<string | null>(null)
+  const [togglingId,     setTogglingId]     = useState<string | null>(null)
+  const [deletingId,     setDeletingId]     = useState<string | null>(null)
+
+  const queryClient = useQueryClient()
+
+  const gruposAdminQ = useQuery({
+    queryKey: ['grupos-empresariales'],
+    queryFn:  getGruposEmpresariales,
+    enabled:  showGrupos,
+  })
+
+  const handleAddGrupo = async () => {
+    const nombre = nuevoGrupo.trim()
+    if (!nombre) { setErrorGrupos('Ingrese un nombre.'); return }
+    setAddingGrupo(true); setErrorGrupos(null)
+    try {
+      await crearGrupoEmpresarial({ nombre, peso: nuevoPeso })
+      setNuevoGrupo(''); setNuevoPeso(99)
+      queryClient.invalidateQueries({ queryKey: ['grupos-empresariales'] })
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setErrorGrupos(msg ?? 'No se pudo crear.')
+    } finally {
+      setAddingGrupo(false)
+    }
+  }
+
+  const handleDeleteGrupo = async (g: GrupoEmpresarialAPI) => {
+    if (!confirm(`¿Eliminar grupo "${g.nombre}" y todos sus miembros?`)) return
+    setDeletingGrupoId(g.id)
+    try {
+      await eliminarGrupoEmpresarial(g.id)
+      queryClient.invalidateQueries({ queryKey: ['grupos-empresariales'] })
+      queryClient.invalidateQueries({ queryKey: ['cartera-grupos'] })
+    } finally {
+      setDeletingGrupoId(null)
+    }
+  }
+
+  const handleToggleGrupoActivo = async (g: GrupoEmpresarialAPI) => {
+    try {
+      await actualizarGrupoEmpresarial(g.id, { activo: !g.activo })
+      queryClient.invalidateQueries({ queryKey: ['grupos-empresariales'] })
+    } catch { /* silencioso */ }
+  }
+
+  const handleAddMiembro = async (grupoId: string) => {
+    const nombre = nuevoMiembro.trim()
+    if (!nombre) return
+    setAddingMiembro(grupoId)
+    try {
+      await agregarMiembroGrupo(grupoId, nombre)
+      setNuevoMiembro('')
+      queryClient.invalidateQueries({ queryKey: ['grupos-empresariales'] })
+      queryClient.invalidateQueries({ queryKey: ['cartera-grupos'] })
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setErrorGrupos(msg ?? 'No se pudo agregar miembro.')
+    } finally {
+      setAddingMiembro(null)
+    }
+  }
+
+  const handleDeleteMiembro = async (grupoId: string, miembroId: string, nombre: string) => {
+    if (!confirm(`¿Quitar "${nombre}" del grupo?`)) return
+    setDeletingMiembroId(miembroId)
+    try {
+      await eliminarMiembroGrupo(grupoId, miembroId)
+      queryClient.invalidateQueries({ queryKey: ['grupos-empresariales'] })
+      queryClient.invalidateQueries({ queryKey: ['cartera-grupos'] })
+    } finally {
+      setDeletingMiembroId(null)
+    }
+  }
+
+  const destinatariosQ = useQuery({
+    queryKey: ['destinatarios-cartera'],
+    queryFn:  getDestinatariosCartera,
+    enabled:  showDest,
+  })
+
+  const handleAddDest = async () => {
+    const email = nuevoEmail.trim().toLowerCase()
+    if (!email || !email.includes('@')) { setErrorDest('Ingrese un correo válido.'); return }
+    setAddingDest(true); setErrorDest(null)
+    try {
+      await crearDestinatarioCartera({ destinatario: email, rol: nuevoRol.trim() || undefined })
+      setNuevoEmail(''); setNuevoRol('')
+      queryClient.invalidateQueries({ queryKey: ['destinatarios-cartera'] })
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error
+      setErrorDest(msg ?? 'No se pudo agregar.')
+    } finally {
+      setAddingDest(false)
+    }
+  }
+
+  const handleToggleDest = async (d: Destinatario) => {
+    setTogglingId(d.id)
+    try {
+      await toggleDestinatarioCartera(d.id)
+      queryClient.invalidateQueries({ queryKey: ['destinatarios-cartera'] })
+    } finally {
+      setTogglingId(null)
+    }
+  }
+
+  const handleDeleteDest = async (d: Destinatario) => {
+    if (!confirm(`¿Eliminar a ${d.destinatario}?`)) return
+    setDeletingId(d.id)
+    try {
+      await eliminarDestinatarioCartera(d.id)
+      queryClient.invalidateQueries({ queryKey: ['destinatarios-cartera'] })
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleEnviarReporte = async () => {
+    setEnviando(true); setEnviado(false); setErrorEnvio(null)
+    try {
+      await enviarReporteCartera()
+      setEnviado(true)
+      setTimeout(() => setEnviado(false), 5000)
+    } catch {
+      setErrorEnvio('No se pudo enviar. Intente de nuevo.')
+      setTimeout(() => setErrorEnvio(null), 5000)
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  const carteraQ    = useQuery({ queryKey: ['cartera', filtro],     queryFn: () => getCartera(filtro) })
+  const proximosQ   = useQuery({ queryKey: ['proximos'],             queryFn: getProximosVencimientos })
+  const regionesQ   = useQuery({ queryKey: ['regiones', filtro],    queryFn: () => getCarteraRegiones(filtro) })
   const anioVentasParam = filtro.fecha_hasta
     ? parseInt(filtro.fecha_hasta.slice(0, 4), 10)
     : new Date().getFullYear()
@@ -357,21 +528,18 @@ export const CarteraInforme = () => {
     setExpClientes(new Set())
     setExpRegiones(new Set())
     setExpRegionesCiudades(new Set())
-    setExpComerciales(new Set())
     setExpGrupos(new Set())
     setPageCarteraEdades(1)
     setPageProximos(1)
     setPageRegiones(1)
-    setPageComerciales(1)
-    setBusEdades(''); setBusRegiones(''); setBusComerciales('')
-    setOrdenEdades('az'); setOrdenLineas('az')
+    setBusEdades(''); setBusRegiones('')
+    setOrdenEdades('az')
   }
 
   // Solo datos reales
   const cartera    = carteraQ.data ?? []
   const proximos   = proximosQ.data?.proximos_vencimientos ?? []
   const regiones   = regionesQ.data?.regiones ?? []
-  const comerciales= comercQ.data?.lineas ?? comercQ.data?.comerciales ?? []
   const gruposData      = gruposQ.data
   const grupos          = gruposData?.grupos ?? []             // ordenados por deuda desc (Pareto)
   const gruposPorPeso   = [...grupos].sort((a, b) => a.peso - b.peso)  // para tabla/cards
@@ -418,27 +586,12 @@ export const CarteraInforme = () => {
   const regionesPages = totalPages(regionesFiltradas.length)
   const regionesPageItems = paginate(regionesFiltradas, Math.min(pageRegiones, regionesPages))
 
-  // Comerciales — con búsqueda por nombre o cod_vend, y orden
-  const comercialesFiltradosBus = busComerciales.trim()
-    ? comerciales.filter(c =>
-        c.vendedor.toLowerCase().includes(busComerciales.toLowerCase()) ||
-        c.linea?.toLowerCase().includes(busComerciales.toLowerCase()) ||
-        c.cod_vend?.toLowerCase().includes(busComerciales.toLowerCase())
-      )
-    : comerciales
-  const comercialesFiltrados = ordenLineas === 'az'
-    ? [...comercialesFiltradosBus].sort((a, b) => (a.linea ?? a.vendedor ?? '').localeCompare(b.linea ?? b.vendedor ?? '', 'es'))
-    : [...comercialesFiltradosBus].sort((a, b) => b.total_deuda - a.total_deuda)
-  const comercialesPages = totalPages(comercialesFiltrados.length)
-  const comercialesPageItems = paginate(comercialesFiltrados, Math.min(pageComerciales, comercialesPages))
-
-  const cargando = carteraQ.isLoading || proximosQ.isLoading || regionesQ.isLoading || comercQ.isLoading || gruposQ.isLoading
-  const actualizandoFiltros = carteraQ.isFetching || proximosQ.isFetching || regionesQ.isFetching || comercQ.isFetching || gruposQ.isFetching
+  const cargando = carteraQ.isLoading || proximosQ.isLoading || regionesQ.isLoading || gruposQ.isLoading
+  const actualizandoFiltros = carteraQ.isFetching || proximosQ.isFetching || regionesQ.isFetching || gruposQ.isFetching
   const dataError =
     (carteraQ.error as AxiosError<{ message?: string; error?: string }>) ||
     (proximosQ.error as AxiosError<{ message?: string; error?: string }>) ||
     (regionesQ.error as AxiosError<{ message?: string; error?: string }>) ||
-    (comercQ.error as AxiosError<{ message?: string; error?: string }>) ||
     (gruposQ.error as AxiosError<{ message?: string; error?: string }>)
   const errorMsg =
     dataError?.response?.data?.message ||
@@ -450,45 +603,353 @@ export const CarteraInforme = () => {
 
       {/* ── HEADER PEGAJOSO ─────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-primary-950 text-white shadow-lg border-b border-primary-800">
-        <div className="px-6 lg:px-10 py-4 flex flex-wrap items-center gap-4">
+        <div className="px-6 lg:px-10 py-4 flex flex-wrap items-center justify-between gap-3">
 
           {/* Título */}
-          <div className="min-w-[200px]">
+          <div>
             <h1 className="text-2xl font-extrabold leading-tight tracking-tight">
               INFORME DE CARTERA — GRUPO RP
             </h1>
             {fechaCorte && (
-                <span className="text-xs text-white/60 mt-0.5 block">
-                  Corte: {fechaCorte}
-                </span>
-              )}
+              <span className="text-xs text-white/60 mt-0.5 block">
+                Corte: {fechaCorte}
+              </span>
+            )}
           </div>
 
-          {/* Filtro de fecha de corte */}
-          <div className="flex flex-wrap items-center gap-2 bg-white/8 border border-white/15 px-4 py-2 rounded-xl ml-auto">
-            <Calendar className="h-4 w-4 opacity-60 shrink-0" />
-            <label className="text-sm opacity-80">Fecha de corte</label>
-            <input
-              type="date" value={hastaInput}
-              onChange={e => setHastaInput(e.target.value)}
-              className="bg-white/15 text-white text-sm px-2.5 py-1.5 rounded-lg border border-white/25 focus:outline-none focus:ring-1 focus:ring-white/40 w-36"
-            />
-            <button
-              onClick={aplicarFiltro}
-              disabled={actualizandoFiltros}
-              className="flex items-center gap-1.5 bg-white text-slate-800 font-bold px-4 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {actualizandoFiltros ? <Spinner className="h-4 w-4 text-slate-700" /> : <Search className="h-4 w-4" />}
-              {actualizandoFiltros ? 'Actualizando…' : 'Buscar'}
-            </button>
-          </div>
+          {/* Controles derecha */}
+          <div className="flex flex-wrap items-center gap-3">
 
-          <div className="text-xs text-white/70 ml-2 flex items-center gap-2">
-            {actualizandoFiltros && <Spinner className="h-3.5 w-3.5 text-white" />}
-            {actualizandoFiltros ? 'Actualizando datos…' : 'Datos en línea'}
+            {/* Filtro fecha */}
+            <div className="flex items-center gap-2 bg-white/10 border border-white/20 px-4 py-2 rounded-xl">
+              <Calendar className="h-4 w-4 opacity-60 shrink-0" />
+              <label className="text-sm opacity-80 whitespace-nowrap">Fecha de corte</label>
+              <input
+                type="date" value={hastaInput}
+                onChange={e => setHastaInput(e.target.value)}
+                className="bg-white/15 text-white text-sm px-2.5 py-1.5 rounded-lg border border-white/25 focus:outline-none focus:ring-1 focus:ring-white/40 w-36"
+              />
+              <button
+                onClick={aplicarFiltro}
+                disabled={actualizandoFiltros}
+                className="flex items-center gap-1.5 bg-white text-slate-800 font-bold px-4 py-1.5 rounded-lg hover:bg-gray-100 transition-colors text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {actualizandoFiltros ? <Spinner className="h-4 w-4 text-slate-700" /> : <Search className="h-4 w-4" />}
+                {actualizandoFiltros ? 'Actualizando…' : 'Buscar'}
+              </button>
+            </div>
+
+            {/* Botón enviar reporte + gestionar destinatarios */}
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={handleEnviarReporte}
+                  disabled={enviando}
+                  className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all border whitespace-nowrap ${
+                    enviado
+                      ? 'bg-emerald-500 border-emerald-400 text-white'
+                      : errorEnvio
+                        ? 'bg-red-500 border-red-400 text-white'
+                        : 'bg-white/15 border-white/30 text-white hover:bg-white/25'
+                  } disabled:opacity-60 disabled:cursor-not-allowed`}
+                >
+                  {enviando
+                    ? <Spinner className="h-4 w-4 text-white" />
+                    : enviado
+                      ? <CheckCircle className="h-4 w-4" />
+                      : <Mail className="h-4 w-4" />}
+                  {enviando ? 'Enviando…' : enviado ? '¡Enviado!' : 'Enviar reporte'}
+                </button>
+                {/* Dropdown Configurar */}
+                <div className="relative" ref={configMenuRef}>
+                  <button
+                    onClick={() => setShowConfigMenu(v => !v)}
+                    title="Configurar"
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors ${
+                      showConfigMenu
+                        ? 'bg-white/20 border-white/40 text-white'
+                        : 'border-white/30 text-white/70 hover:bg-white/15 hover:text-white'
+                    }`}
+                  >
+                    <Settings className="h-4 w-4" />
+                    <span className="hidden sm:inline">Configurar</span>
+                  </button>
+                  {showConfigMenu && (
+                    <div className="absolute right-0 top-full mt-1.5 w-56 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-50">
+                      <button
+                        onClick={() => { setShowDest(true); setShowConfigMenu(false) }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <Mail className="h-4 w-4 text-slate-500 shrink-0" />
+                        <div className="text-left">
+                          <p className="font-semibold">Destinatarios</p>
+                          <p className="text-xs text-gray-400">Quién recibe el reporte</p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => { setShowGrupos(true); setShowConfigMenu(false) }}
+                        className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <Building2 className="h-4 w-4 text-slate-500 shrink-0" />
+                        <div className="text-left">
+                          <p className="font-semibold">Grupos empresariales</p>
+                          <p className="text-xs text-gray-400">Agrupación de instituciones</p>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <span className="text-xs text-white/40 whitespace-nowrap">
+                {errorEnvio
+                  ? <span className="text-red-300">{errorEnvio}</span>
+                  : 'Auto 7:50 AM · L–V'}
+              </span>
+            </div>
+
           </div>
         </div>
       </div>
+
+      {/* ── Modal destinatarios ──────────────────────────────────────────── */}
+      {showDest && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={e => { if (e.target === e.currentTarget) setShowDest(false) }}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-slate-700" />
+                <h2 className="font-bold text-slate-800 text-base">Destinatarios del reporte</h2>
+              </div>
+              <button onClick={() => setShowDest(false)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Lista */}
+            <div className="px-6 py-4 max-h-72 overflow-y-auto">
+              {destinatariosQ.isLoading && (
+                <div className="flex items-center gap-2 text-sm text-gray-500 py-4 justify-center">
+                  <Spinner className="h-4 w-4" /> Cargando…
+                </div>
+              )}
+              {destinatariosQ.isError && (
+                <p className="text-sm text-red-600 py-2">Error cargando destinatarios.</p>
+              )}
+              {destinatariosQ.data && destinatariosQ.data.length === 0 && (
+                <p className="text-sm text-gray-400 py-4 text-center">Sin destinatarios registrados.</p>
+              )}
+              {destinatariosQ.data && destinatariosQ.data.map(d => (
+                <div key={d.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
+                  <div className="min-w-0">
+                    <p className={`text-sm font-medium truncate ${d.activo ? 'text-gray-800' : 'text-gray-400 line-through'}`}>
+                      {d.destinatario}
+                    </p>
+                    {d.rol && <p className="text-xs text-gray-400">{d.rol}</p>}
+                  </div>
+                  <div className="flex items-center gap-2 ml-3 shrink-0">
+                    <button
+                      onClick={() => handleToggleDest(d)}
+                      disabled={togglingId === d.id}
+                      title={d.activo ? 'Desactivar' : 'Activar'}
+                      className="text-gray-400 hover:text-slate-700 transition-colors disabled:opacity-40"
+                    >
+                      {togglingId === d.id
+                        ? <Spinner className="h-5 w-5" />
+                        : d.activo
+                          ? <ToggleRight className="h-5 w-5 text-emerald-500" />
+                          : <ToggleLeft className="h-5 w-5" />}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDest(d)}
+                      disabled={deletingId === d.id}
+                      title="Eliminar"
+                      className="text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40"
+                    >
+                      {deletingId === d.id
+                        ? <Spinner className="h-4 w-4" />
+                        : <Trash2 className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Agregar */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Agregar destinatario</p>
+              <div className="flex gap-2">
+                <div className="flex-1 min-w-0">
+                  <input
+                    type="email"
+                    placeholder="correo@ejemplo.com"
+                    value={nuevoEmail}
+                    onChange={e => { setNuevoEmail(e.target.value); setErrorDest(null) }}
+                    onKeyDown={e => e.key === 'Enter' && handleAddDest()}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 mb-2"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Rol (opcional)"
+                    value={nuevoRol}
+                    onChange={e => setNuevoRol(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && handleAddDest()}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                  />
+                </div>
+                <button
+                  onClick={handleAddDest}
+                  disabled={addingDest}
+                  className="px-4 py-2 bg-slate-800 text-white rounded-lg text-sm font-semibold hover:bg-slate-700 transition-colors disabled:opacity-50 flex items-center gap-1.5 self-start"
+                >
+                  {addingDest ? <Spinner className="h-4 w-4 text-white" /> : <UserPlus className="h-4 w-4" />}
+                  Agregar
+                </button>
+              </div>
+              {errorDest && <p className="text-xs text-red-600 mt-2">{errorDest}</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal grupos empresariales ──────────────────────────────────── */}
+      {showGrupos && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+          onClick={() => setShowGrupos(false)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-5 w-5 text-slate-600" />
+                <h2 className="text-base font-semibold text-gray-900">Grupos empresariales</h2>
+              </div>
+              <button onClick={() => setShowGrupos(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+              {gruposAdminQ.isPending && <p className="text-sm text-gray-500 text-center py-4">Cargando…</p>}
+              {gruposAdminQ.isError && <p className="text-sm text-red-600 text-center py-4">Error al cargar grupos.</p>}
+              {gruposAdminQ.data?.map(g => (
+                <div key={g.id} className={`border rounded-xl overflow-hidden ${g.activo ? 'border-gray-200' : 'border-gray-200 opacity-60'}`}>
+                  {/* Grupo header row */}
+                  <div className="flex items-center gap-2 px-4 py-3 bg-gray-50">
+                    <button
+                      onClick={() => setExpandedGrupo(expandedGrupo === g.id ? null : g.id)}
+                      className="flex-1 flex items-center gap-2 text-left"
+                    >
+                      {expandedGrupo === g.id
+                        ? <ChevronUp className="h-4 w-4 text-gray-400" />
+                        : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                      <span className="font-medium text-sm text-gray-800">{g.nombre}</span>
+                      <span className="text-xs text-gray-400 ml-1">({g.miembros.length} miembros)</span>
+                    </button>
+                    <button
+                      onClick={() => handleToggleGrupoActivo(g)}
+                      title={g.activo ? 'Desactivar' : 'Activar'}
+                      className="text-gray-400 hover:text-slate-600"
+                    >
+                      {g.activo
+                        ? <ToggleRight className="h-5 w-5 text-green-500" />
+                        : <ToggleLeft className="h-5 w-5" />}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteGrupo(g)}
+                      disabled={deletingGrupoId === g.id}
+                      className="text-gray-400 hover:text-red-500 disabled:opacity-40"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Miembros expandibles */}
+                  {expandedGrupo === g.id && (
+                    <div className="px-4 pb-3 pt-2 space-y-1">
+                      {g.miembros.map(m => (
+                        <div key={m.id} className="flex items-center gap-2 py-1 border-b border-gray-100 last:border-0">
+                          <span className="flex-1 text-xs text-gray-700">{m.nombre_cliente}</span>
+                          <button
+                            onClick={() => handleDeleteMiembro(g.id, m.id, m.nombre_cliente)}
+                            disabled={deletingMiembroId === m.id}
+                            className="text-gray-300 hover:text-red-400 disabled:opacity-40"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                      {g.miembros.length === 0 && (
+                        <p className="text-xs text-gray-400 py-1">Sin miembros.</p>
+                      )}
+                      {/* Agregar miembro */}
+                      <div className="flex gap-2 pt-2">
+                        <input
+                          type="text"
+                          placeholder="Nombre en Saint (exacto)"
+                          value={expandedGrupo === g.id ? nuevoMiembro : ''}
+                          onChange={e => setNuevoMiembro(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && handleAddMiembro(g.id)}
+                          className="flex-1 border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-slate-400"
+                        />
+                        <button
+                          onClick={() => handleAddMiembro(g.id)}
+                          disabled={addingMiembro === g.id}
+                          className="text-xs bg-slate-700 text-white px-3 py-1 rounded-lg hover:bg-slate-800 disabled:opacity-50 flex items-center gap-1"
+                        >
+                          {addingMiembro === g.id ? <Spinner className="h-3 w-3 text-white" /> : <UserPlus className="h-3 w-3" />}
+                          Agregar
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              {errorGrupos && <p className="text-xs text-red-600 mt-1">{errorGrupos}</p>}
+            </div>
+
+            {/* Footer: nuevo grupo */}
+            <div className="border-t border-gray-100 px-6 py-4">
+              <p className="text-xs font-medium text-gray-500 mb-2">Nuevo grupo</p>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Nombre del grupo"
+                  value={nuevoGrupo}
+                  onChange={e => { setNuevoGrupo(e.target.value); setErrorGrupos(null) }}
+                  onKeyDown={e => e.key === 'Enter' && handleAddGrupo()}
+                  className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+                <input
+                  type="number"
+                  min={1}
+                  max={99}
+                  placeholder="Orden"
+                  value={nuevoPeso}
+                  onChange={e => setNuevoPeso(Number(e.target.value))}
+                  className="w-20 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+                />
+                <button
+                  onClick={handleAddGrupo}
+                  disabled={addingGrupo}
+                  className="bg-slate-800 text-white px-4 py-2 rounded-xl text-sm hover:bg-slate-700 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {addingGrupo ? <Spinner className="h-4 w-4 text-white" /> : <Building2 className="h-4 w-4" />}
+                  Crear
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {cargando && (
         <div className="px-6 lg:px-10 pt-6">
@@ -681,7 +1142,6 @@ export const CarteraInforme = () => {
                               <th className="px-4 py-2.5 text-left">Grupo</th>
                               <th className="px-4 py-2.5 text-right">Cartera</th>
                               {totalVentas > 0 && <th className="px-4 py-2.5 text-right">Ventas {anioVentas}</th>}
-                              {totalVentas > 0 && <th className="px-4 py-2.5 text-right" title="Cartera como % de ventas del año">Ratio C/V</th>}
                               {totalVentas > 0 && <th className="px-4 py-2.5 text-right" title="Días promedio de cobranza (DSO)">Días cob.</th>}
                               <th className="px-4 py-2.5 text-right">% total</th>
                               <th className="px-4 py-2.5 text-right">% Acum.</th>
@@ -702,11 +1162,6 @@ export const CarteraInforme = () => {
                                   </td>
                                   <td className="px-4 py-2.5 text-right font-extrabold text-[#0f3460]">{fmtM(g.total_deuda)}</td>
                                   {totalVentas > 0 && <td className="px-4 py-2.5 text-right text-emerald-700 font-semibold">{g.ventas_anio > 0 ? fmtM(g.ventas_anio) : <span className="text-gray-300">—</span>}</td>}
-                                  {totalVentas > 0 && <td className="px-4 py-2.5 text-right">
-                                    {g.ratio_cartera_ventas != null
-                                      ? <span className={`font-bold ${g.ratio_cartera_ventas > 50 ? 'text-red-700' : g.ratio_cartera_ventas > 25 ? 'text-orange-600' : 'text-green-700'}`}>{g.ratio_cartera_ventas}%</span>
-                                      : <span className="text-gray-300">—</span>}
-                                  </td>}
                                   {totalVentas > 0 && <td className="px-4 py-2.5 text-right">
                                     {g.dias_cartera != null
                                       ? <span className={`font-bold ${g.dias_cartera > 180 ? 'text-red-700' : g.dias_cartera > 90 ? 'text-orange-600' : 'text-green-700'}`}>{g.dias_cartera}d</span>
@@ -1054,13 +1509,12 @@ export const CarteraInforme = () => {
                 <thead className="bg-[#1a1a2e] text-white text-sm">
                   <tr>
                     <th className="px-3 py-3 text-left w-10">#</th>
-                    <th className="px-3 py-3 text-left w-[20%]">Cliente</th>
-                    <th className="px-3 py-3 text-left w-[11%]">Ciudad</th>
-                    <th className="px-3 py-3 text-left w-[29%]">Línea(s)</th>
-                    <th className="px-3 py-3 text-right w-[10%]">Total</th>
-                    <th className="px-3 py-3 text-right w-[10%]">Vencida</th>
-                    <th className="px-3 py-3 text-right w-[10%]">+90d</th>
-                    <th className="px-3 py-3 text-center w-[10%]">Estado</th>
+                    <th className="px-3 py-3 text-left w-[30%]">Cliente</th>
+                    <th className="px-3 py-3 text-left w-[16%]">Ciudad</th>
+                    <th className="px-3 py-3 text-right w-[14%]">Total</th>
+                    <th className="px-3 py-3 text-right w-[14%]">Vencida</th>
+                    <th className="px-3 py-3 text-right w-[14%]">+90d</th>
+                    <th className="px-3 py-3 text-center w-[12%]">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1088,9 +1542,6 @@ export const CarteraInforme = () => {
                             <div className="text-sm text-gray-500 mt-1 ml-7 font-mono tracking-wide"><span className="font-bold text-gray-400 not-italic mr-1">NIT</span>{c.cliente_nit}</div>
                           </td>
                           <td className="px-3 py-4 text-gray-600 align-top">{c.ciudad || '—'}</td>
-                          <td className="px-3 py-4 text-gray-600 text-sm break-words leading-5 align-top" title={c.vendedor || '—'}>
-                            {c.vendedor || '—'}
-                          </td>
                           <td className="px-3 py-4 text-right font-extrabold text-[#0f3460] whitespace-nowrap align-top">{fmtM(c.total_deuda)}</td>
                           <td className="px-3 py-4 text-right text-orange-600 font-semibold whitespace-nowrap align-top">{fmtM(vencida)}</td>
                           <td className="px-3 py-4 text-right text-red-900 font-bold whitespace-nowrap align-top">{fmtM(mas90)}</td>
@@ -1100,7 +1551,7 @@ export const CarteraInforme = () => {
                             </span>
                           </td>
                         </tr>
-                        {isOpen && <FilaFacturas nit={c.cliente_nit} cols={8} filtro={filtro} />}
+                        {isOpen && <FilaFacturas nit={c.cliente_nit} cols={7} filtro={filtro} />}
                       </Fragment>
                     )
                   })}
@@ -1110,7 +1561,7 @@ export const CarteraInforme = () => {
                      const fil = carteraFiltradaRiesgo
                      return (
                       <tr>
-                        <td colSpan={4} className="px-3 py-3 font-bold text-gray-700">
+                        <td colSpan={3} className="px-3 py-3 font-bold text-gray-700">
                           TOTALES {filtroRiesgo !== 'todos' && `(${fil.length} clientes filtrados)`}
                         </td>
                         <td className="px-3 py-3 text-right font-extrabold text-slate-800">{fmtM(fil.reduce((s,c)=>s+c.total_deuda,0))}</td>
@@ -1406,154 +1857,6 @@ export const CarteraInforme = () => {
               onChange={setPageRegiones}
             />
           </section>
-
-          {/* ══════════════════════════════════════════════════════════════
-              SECCIÓN 4 — CARTERA POR LÍNEA
-          ══════════════════════════════════════════════════════════════ */}
-          <section className="bg-white rounded-2xl shadow-sm p-7">
-            <SectionHeader
-              icon={<UserCheck className="h-7 w-7" />}
-              title="CARTERA POR LÍNEA"
-              count={`${comerciales.length} líneas`}
-              color="teal"
-            />
-            <BuscarInput value={busComerciales} onChange={v => { setBusComerciales(v); setPageComerciales(1) }} placeholder="Buscar por línea o código..." />
-
-            {/* Orden */}
-            <div className="flex items-center gap-2 mb-4">
-              <span className="text-sm text-gray-600 font-semibold">Ordenar:</span>
-              {(['az', 'deuda'] as const).map(o => (
-                <button
-                  key={o}
-                  onClick={() => { setOrdenLineas(o); setPageComerciales(1) }}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold transition-all border ${ordenLineas === o ? 'bg-teal-600 text-white border-teal-600' : 'bg-white text-gray-600 border-gray-300 hover:border-teal-400'}`}
-                >
-                  {o === 'az' ? 'A–Z' : 'Mayor deuda'}
-                </button>
-              ))}
-            </div>
-
-            {comercQ.isLoading && (
-              <div className="flex justify-center py-8"><Spinner className="h-10 w-10" /></div>
-            )}
-            {!comercQ.isLoading && comerciales.length === 0 && (
-              <p className="text-gray-400 text-lg py-6 text-center">Sin datos de líneas</p>
-            )}
-            {comercialesFiltrados.length > 0 && (
-              <div className="space-y-3">
-                {comercialesPageItems.map((com: LineaAgregada, idx) => {
-                  const isOpen = expComerciales.has(com.vendedor)
-                  const pctVencNum = com.total_deuda > 0
-                    ? (com.total_vencida / com.total_deuda) * 100
-                    : 0
-                  const pctVencFmt = fmtPct(pctVencNum)
-                  const badgeVenc = pctVencNum > 60 ? 'bg-red-100 text-red-800' : pctVencNum > 30 ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
-                  return (
-                    <div key={com.vendedor} className="border border-teal-200 rounded-2xl overflow-hidden shadow-sm">
-                      {/* Cabecera — clic para expandir */}
-                      <button
-                        onClick={() => setExpComerciales(prev => toggleSet(prev, com.vendedor))}
-                        className="w-full text-left"
-                      >
-                        <div className="flex flex-wrap sm:flex-nowrap items-start sm:items-center gap-3 px-5 py-4 bg-white hover:bg-teal-50 transition-colors">
-                          <span className="text-gray-400 font-mono text-sm w-6 shrink-0 text-right">
-                            {(Math.min(pageComerciales, comercialesPages) - 1) * PAGE_SIZE + idx + 1}
-                          </span>
-                          {isOpen
-                            ? <ChevronDown className="h-5 w-5 text-teal-600 shrink-0" />
-                            : <ChevronRight className="h-5 w-5 text-gray-400 shrink-0" />}
-                          <div className="flex-1 min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-lg sm:text-xl font-extrabold text-gray-900 break-words">{com.linea || com.vendedor}</span>
-                              {com.cod_vend && (
-                                <span className="bg-teal-100 text-teal-700 text-xs font-bold px-2 py-0.5 rounded-full border border-teal-200 shrink-0">
-                                  Cód. {com.cod_vend}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-500 mt-0.5">
-                              {com.clientes_count} {com.clientes_count === 1 ? 'institución' : 'instituciones'}
-                            </p>
-                          </div>
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full sm:w-auto sm:min-w-[420px]">
-                            <div className="text-right bg-slate-50 rounded-lg px-2 py-1.5">
-                              <p className="text-xs text-gray-500 font-medium">Total</p>
-                              <p className="text-xl font-extrabold text-[#0f3460]">{fmtM(com.total_deuda)}</p>
-                            </div>
-                            <div className="text-right bg-slate-50 rounded-lg px-2 py-1.5">
-                              <p className="text-xs text-gray-500 font-medium">Vencida</p>
-                              <p className={`text-lg font-bold ${pctVencNum > 60 ? 'text-red-700' : pctVencNum > 30 ? 'text-orange-600' : 'text-green-700'}`}>
-                                {fmtM(com.total_vencida)}
-                              </p>
-                            </div>
-                            <div className="text-right bg-slate-50 rounded-lg px-2 py-1.5">
-                              <p className="text-xs text-gray-500 font-medium">% Vencida</p>
-                              <span className={`px-2.5 py-1 rounded-full text-sm font-bold ${badgeVenc}`}>{pctVencFmt}</span>
-                            </div>
-                            <div className="text-right bg-slate-50 rounded-lg px-2 py-1.5">
-                              <p className="text-xs text-gray-500 font-medium">% Total</p>
-                              <p className="text-base font-bold text-gray-700">{com.porcentaje}%</p>
-                            </div>
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* Detalle de instituciones */}
-                      {isOpen && (
-                        <div className="border-t border-teal-200 bg-teal-50">
-                          <div className="px-5 py-3 bg-teal-100 flex items-center justify-between">
-                            <span className="text-sm font-bold text-teal-800 uppercase tracking-wide">
-                              INSTITUCIONES — {(com.linea || com.vendedor).toUpperCase()}
-                            </span>
-                            <span className="text-xs text-teal-600 font-semibold">Mayor a menor deuda</span>
-                          </div>
-                          <div className="divide-y divide-teal-100">
-                            {com.clientes.map((cl, ci) => (
-                              <div key={cl.cliente_nit} className="flex flex-wrap items-center gap-x-5 gap-y-1.5 px-5 py-3.5 hover:bg-teal-100 transition-colors">
-                                <span className="text-gray-400 font-mono text-sm w-6 text-right shrink-0">{ci + 1}</span>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-bold text-gray-900 text-base">{cl.cliente_nombre}</p>
-                                  <p className="text-xs text-gray-500 font-mono mt-0.5">
-                                    NIT {cl.cliente_nit}{cl.ciudad ? ` · ${cl.ciudad}` : ''}
-                                  </p>
-                                </div>
-                                <div className="flex items-center gap-5 shrink-0 text-right">
-                                  <div>
-                                    <p className="text-xs text-gray-500">Total</p>
-                                    <p className="font-extrabold text-[#0f3460] text-base">{fmtM(cl.total_deuda)}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-gray-500">Vigente</p>
-                                    <p className="font-semibold text-green-700 text-sm">{fmtM(cl.vigente)}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-xs text-gray-500">+90d mora</p>
-                                    <p className="font-bold text-red-900 text-sm">{fmtM(cl.dias_91_180 + cl.mas_180_dias)}</p>
-                                  </div>
-                                  <div className="w-20 text-center">
-                                    {cl.dias_mora_max > 0
-                                      ? <span className="bg-red-100 text-red-800 px-2.5 py-1 rounded-full text-sm font-bold">{cl.dias_mora_max}d</span>
-                                      : <span className="text-green-600 text-sm font-semibold">Al día</span>
-                                    }
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-            <PaginationControls
-              page={Math.min(pageComerciales, comercialesPages)}
-              pages={comercialesPages}
-              onChange={setPageComerciales}
-            />
-          </section>
-
 
 
         </div>
