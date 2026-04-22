@@ -12,6 +12,7 @@ import { Tesoreria } from './pages/Tesoreria'
 import { AgenteChat } from './pages/AgenteChat'
 import { useAuthStore } from './store/authStore'
 import { getDashboardResumen } from './api/dashboard'
+import { getDemoAccessToken } from './api/client'
 
 /** Attempts a silent token refresh on app mount using the httpOnly refresh cookie.
  *  On success: sets accessToken and pre-warms the dashboard cache so the first
@@ -21,8 +22,12 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient()
 
   useEffect(() => {
+    const demoToken = getDemoAccessToken()
     axios
-      .post('/api/auth/refresh/', {}, { withCredentials: true })
+      .post('/api/auth/refresh/', {}, {
+        withCredentials: true,
+        headers: demoToken ? { 'X-Access-Token': demoToken } : {},
+      })
       .then(({ data }) => {
         if (data?.access) {
           setAccessToken(data.access)

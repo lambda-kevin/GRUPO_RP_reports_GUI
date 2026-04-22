@@ -87,7 +87,7 @@ const KPI = ({ label, value, sub, icon, color, pct }: KPIProps) => {
         <p className="text-sm font-bold text-gray-600 uppercase tracking-wide leading-tight">{label}</p>
         <span className={`${iconCls} opacity-70`}>{icon}</span>
       </div>
-      <p className={`text-4xl font-extrabold ${valCls} leading-none`}>{value}</p>
+      <p className={`text-2xl font-extrabold ${valCls} leading-snug break-all`}>{value}</p>
       {(sub || pct !== undefined) && (
         <p className="text-sm text-gray-500 mt-1">
           {pct !== undefined && <span className="font-semibold">{fmtPct(pct)} del total · </span>}
@@ -202,14 +202,14 @@ export const Dashboard = () => {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <KPI
                   label="Cartera total"
-                  value={fmtCOPShort(cartera.total_cartera)}
+                  value={fmtCOP(cartera.total_cartera)}
                   sub={`${cartera.clientes_count} clientes activos`}
                   icon={<DollarSign className="h-5 w-5" />}
                   color="green"
                 />
                 <KPI
                   label="Cartera vencida"
-                  value={fmtCOPShort(cartera.total_vencida)}
+                  value={fmtCOP(cartera.total_vencida)}
                   sub="Facturas con días de mora"
                   pct={cartera.pct_vencida}
                   icon={<TrendingUp className="h-5 w-5" />}
@@ -217,7 +217,7 @@ export const Dashboard = () => {
                 />
                 <KPI
                   label="Mora crítica +90 días"
-                  value={fmtCOPShort(cartera.mora_90)}
+                  value={fmtCOP(cartera.mora_90)}
                   sub={`${cartera.clientes_criticos_count} clientes en mora crítica`}
                   pct={cartera.pct_mora_90}
                   icon={<ShieldAlert className="h-5 w-5" />}
@@ -225,7 +225,7 @@ export const Dashboard = () => {
                 />
                 <KPI
                   label="Sin mora (vigente)"
-                  value={fmtCOPShort(cartera.frescas)}
+                  value={fmtCOP(cartera.frescas)}
                   sub="Cartera al corriente, sin vencimiento"
                   icon={<CheckCircle className="h-5 w-5" />}
                   color="gray"
@@ -360,15 +360,15 @@ export const Dashboard = () => {
                 <div className="grid grid-cols-2 gap-3 mb-4">
                   <div className="bg-green-50 rounded-xl p-3 border border-green-100">
                     <p className="text-xs text-gray-500 font-semibold uppercase">Ingresos</p>
-                    <p className="text-xl font-extrabold text-green-800">{fmtCOPShort(bancos.total_ingresos)}</p>
+                    <p className="text-xl font-extrabold text-green-800">{fmtCOP(bancos.total_ingresos)}</p>
                   </div>
                   <div className="bg-blue-50 rounded-xl p-3 border border-blue-100">
                     <p className="text-xs text-gray-500 font-semibold uppercase">Identificados</p>
-                    <p className="text-xl font-extrabold text-blue-800">{fmtCOPShort(bancos.total_identificados)}</p>
+                    <p className="text-xl font-extrabold text-blue-800">{fmtCOP(bancos.total_identificados)}</p>
                   </div>
                   <div className="bg-amber-50 rounded-xl p-3 border border-amber-100">
                     <p className="text-xs text-gray-500 font-semibold uppercase">Sin identificar</p>
-                    <p className="text-xl font-extrabold text-amber-700">{fmtCOPShort(bancos.total_no_identificados)}</p>
+                    <p className="text-xl font-extrabold text-amber-700">{fmtCOP(bancos.total_no_identificados)}</p>
                   </div>
                   <div className={`rounded-xl p-3 border ${bancos.bancos_con_diferencia > 0 ? 'bg-red-50 border-red-200' : 'bg-gray-50 border-gray-100'}`}>
                     <p className="text-xs text-gray-500 font-semibold uppercase">Diferencias</p>

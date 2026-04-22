@@ -479,3 +479,50 @@ export interface DashboardTesoreriaRespuesta {
   fuente_db: string
   ultima_actualizacion: string
 }
+
+export interface SaldoFavorItem {
+  id: string
+  fecha_corte: string
+  cliente_nit: string
+  cliente_nombre: string
+  num_documentos: number
+  total_saldo_favor: number
+  /** total_deuda_cartera - total_saldo_favor; null si el cliente no tiene cartera activa */
+  saldo_neto: number | null
+}
+
+export interface SaldoFavorRespuesta {
+  fecha_corte: string | null
+  total_clientes: number
+  total_saldo_favor: number
+  clientes: SaldoFavorItem[]
+}
+
+export interface AsesorCliente {
+  cliente_nit: string
+  cliente_nombre: string
+  ciudad: string
+  total_deuda: number
+  vigente: number
+  dias_91_180: number
+  mas_180_dias: number
+  dias_mora_max: number
+}
+
+export interface AsesorItem {
+  asesor: string
+  clientes_count: number
+  lineas: string[]
+  total_deuda: number
+  vigente: number
+  total_vencida: number
+  mora_90: number
+  porcentaje: number
+  clientes: AsesorCliente[]
+}
+
+export interface AsesorRespuesta {
+  fecha_corte: string
+  asesores: AsesorItem[]
+  total_general: number
+}

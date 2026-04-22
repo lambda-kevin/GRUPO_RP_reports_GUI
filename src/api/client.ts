@@ -1,6 +1,19 @@
 import axios from 'axios'
 import { useAuthStore } from '../store/authStore'
 
+const DEMO_TOKEN_KEY = 'rp_demo_access_token'
+
+export const getDemoAccessToken = (): string | null => {
+  if (typeof window === 'undefined') return null
+  const urlToken = new URLSearchParams(window.location.search).get('token')?.trim()
+  if (urlToken) {
+    localStorage.setItem(DEMO_TOKEN_KEY, urlToken)
+    return urlToken
+  }
+  const saved = localStorage.getItem(DEMO_TOKEN_KEY)?.trim()
+  return saved || null
+}
+
 const apiClient = axios.create({
   baseURL: '/api',
   withCredentials: true,
@@ -13,8 +26,12 @@ const apiClient = axios.create({
 // Request interceptor - add Authorization header
 apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().accessToken
+  const demoToken = getDemoAccessToken()
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
+  }
+  if (demoToken) {
+    config.headers['X-Access-Token'] = demoToken
   }
   return config
 })
@@ -53,7 +70,15 @@ apiClient.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const { data } = await axios.post('/api/auth/refresh/', {}, { withCredentials: true })
+        const demoToken = getDemoAccessToken()
+        const { data } = await axios.post(
+          '/api/auth/refresh/',
+          {},
+          {
+            withCredentials: true,
+            headers: demoToken ? { 'X-Access-Token': demoToken } : {},
+          }
+        )
         const newToken = data.access
         useAuthStore.getState().setAccessToken(newToken)
         originalRequest.headers.Authorization = `Bearer ${newToken}`
