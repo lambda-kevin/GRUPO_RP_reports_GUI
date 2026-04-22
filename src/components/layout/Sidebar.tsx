@@ -1,8 +1,9 @@
-import { NavLink, useNavigate } from 'react-router-dom'
+import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useState } from 'react'
 import {
   LayoutDashboard, Wallet, Building2, MessageSquare,
   LogOut, ChevronLeft, ChevronRight, HandCoins,
+  Building, Clock, AlertCircle, MapPin, Layers, CreditCard, Users,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -21,12 +22,27 @@ const NAV_ITEMS = [
   { to: '/agente',    label: 'Centro de Mando',  icon: MessageSquare   },
 ]
 
+const CARTERA_NAV = [
+  { id: 'sec-grupos',       label: 'Grupos',          icon: Building    },
+  { id: 'sec-edades',       label: 'Por edades',      icon: Clock       },
+  { id: 'sec-vencimientos', label: 'Vencimientos',    icon: AlertCircle },
+  { id: 'sec-region',       label: 'Por región',      icon: MapPin      },
+  { id: 'sec-linea',        label: 'Por línea',       icon: Layers      },
+  { id: 'sec-anticipos',    label: 'Anticipos',       icon: CreditCard  },
+  { id: 'sec-comercial',    label: 'Por comercial',   icon: Users       },
+]
+
+const scrollTo = (id: string) =>
+  document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+
 export const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
   const logoSources = ['/dist/assets/grupo-rp-noback.png', '/assets/grupo-rp-noback.png']
   const [logoIndex, setLogoIndex] = useState(0)
   const { user } = useAuth()
   const { logout: storeLogout } = useAuthStore()
   const navigate = useNavigate()
+  const location = useLocation()
+  const enCartera = location.pathname === '/cartera'
 
   const handleLogout = async () => {
     try { await logoutApi() } catch { /* ignore */ }
@@ -104,27 +120,44 @@ export const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
         )}
 
         {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) => `
-              flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium min-h-touch
-              transition-colors group
-              ${isActive
-                ? 'bg-primary-600 text-white'
-                : 'text-primary-300 hover:bg-primary-800 hover:text-white'
-              }
-              ${collapsed ? 'justify-center' : ''}
-            `}
-            title={collapsed ? label : undefined}
-          >
-            {({ isActive }) => (
-              <>
-                <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-white' : 'text-primary-400 group-hover:text-white'}`} />
-                {!collapsed && <span className="truncate">{label}</span>}
-              </>
+          <div key={to}>
+            <NavLink
+              to={to}
+              className={({ isActive }) => `
+                flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium min-h-touch
+                transition-colors group
+                ${isActive
+                  ? 'bg-primary-600 text-white'
+                  : 'text-primary-300 hover:bg-primary-800 hover:text-white'
+                }
+                ${collapsed ? 'justify-center' : ''}
+              `}
+              title={collapsed ? label : undefined}
+            >
+              {({ isActive }) => (
+                <>
+                  <Icon className={`h-5 w-5 shrink-0 ${isActive ? 'text-white' : 'text-primary-400 group-hover:text-white'}`} />
+                  {!collapsed && <span className="truncate">{label}</span>}
+                </>
+              )}
+            </NavLink>
+
+            {/* Sub-nav de cartera — solo visible cuando está en /cartera y sidebar expandido */}
+            {to === '/cartera' && enCartera && !collapsed && (
+              <div className="ml-4 mt-0.5 mb-1 pl-3 border-l border-primary-700 space-y-0.5">
+                {CARTERA_NAV.map(({ id, label: subLabel, icon: SubIcon }) => (
+                  <button
+                    key={id}
+                    onClick={() => scrollTo(id)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs text-primary-400 hover:bg-primary-800 hover:text-white transition-colors text-left"
+                  >
+                    <SubIcon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate">{subLabel}</span>
+                  </button>
+                ))}
+              </div>
             )}
-          </NavLink>
+          </div>
         ))}
       </nav>
 

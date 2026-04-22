@@ -414,6 +414,7 @@ export const CarteraInforme = () => {
   const [expClientes,        setExpClientes]        = useState<Set<string>>(new Set())
   const [expRegiones,        setExpRegiones]        = useState<Set<string>>(new Set())
   const [expRegionesCiudades,setExpRegionesCiudades]= useState<Set<string>>(new Set())
+  const [pagesCiudad,        setPagesCiudad]        = useState<Record<string, number>>({})
   const [expGrupos,          setExpGrupos]          = useState<Set<string>>(new Set())
   const [expLineas,          setExpLineas]          = useState<Set<string>>(new Set())
   const [expAsesores,        setExpAsesores]        = useState<Set<string>>(new Set())
@@ -1135,7 +1136,7 @@ export const CarteraInforme = () => {
               SECCIÓN — GRUPOS EMPRESARIALES
           ══════════════════════════════════════════════════════════════ */}
           {(grupos.length > 0 || gruposQ.isLoading) && (
-          <section className="bg-white rounded-2xl shadow-sm p-7">
+          <section id="sec-grupos" className="bg-white rounded-2xl shadow-sm p-7">
             <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
               <SectionHeader
                 icon={<UserCheck className="h-7 w-7" />}
@@ -1591,7 +1592,7 @@ export const CarteraInforme = () => {
           {/* ══════════════════════════════════════════════════════════════
               SECCIÓN 1 — CARTERA POR EDADES
           ══════════════════════════════════════════════════════════════ */}
-          <section className="bg-white rounded-2xl shadow-sm p-7">
+          <section id="sec-edades" className="bg-white rounded-2xl shadow-sm p-7">
             <SectionHeader
               icon={<Wallet className="h-7 w-7" />}
               title="CARTERA POR EDADES"
@@ -1760,7 +1761,7 @@ export const CarteraInforme = () => {
           {/* ══════════════════════════════════════════════════════════════
               SECCIÓN 2 — FACTURAS PRÓXIMAS A VENCER
           ══════════════════════════════════════════════════════════════ */}
-          <section className="bg-white rounded-2xl shadow-sm p-7">
+          <section id="sec-vencimientos" className="bg-white rounded-2xl shadow-sm p-7">
             <SectionHeader
               icon={<Clock className="h-7 w-7" />}
               title="FACTURAS PRÓXIMAS A VENCER"
@@ -1826,7 +1827,7 @@ export const CarteraInforme = () => {
           {/* ══════════════════════════════════════════════════════════════
               SECCIÓN 3 — CARTERA POR REGIÓN
           ══════════════════════════════════════════════════════════════ */}
-          <section className="bg-white rounded-2xl shadow-sm p-7">
+          <section id="sec-region" className="bg-white rounded-2xl shadow-sm p-7">
             <SectionHeader
               icon={<MapPin className="h-7 w-7" />}
               title="CARTERA POR REGIÓN"
@@ -1929,7 +1930,7 @@ export const CarteraInforme = () => {
                                       <div key={ciu.ciudad} className="border-t border-purple-200">
                                         {/* Ciudad header */}
                                         <button
-                                          onClick={e => { e.stopPropagation(); setExpRegionesCiudades(prev => toggleSet(prev, ciuKey)) }}
+                                          onClick={e => { e.stopPropagation(); setExpRegionesCiudades(prev => toggleSet(prev, ciuKey)); setPagesCiudad(prev => ({ ...prev, [ciuKey]: 1 })) }}
                                           className="w-full flex items-center gap-3 px-5 py-3 hover:bg-purple-100 transition-colors text-left"
                                         >
                                           {ciuOpen
@@ -1944,55 +1945,66 @@ export const CarteraInforme = () => {
                                         </button>
                                         {/* Clients inside city */}
                                         {ciuOpen && (
-                                          <table className="w-full text-sm border-t border-purple-100">
-                                            <thead className="bg-purple-200 text-purple-900">
-                                              <tr>
-                                                <th className="px-6 py-2 text-left w-8">#</th>
-                                                <th className="px-4 py-2 text-left">Cliente</th>
-                                                <th className="px-4 py-2 text-left">NIT</th>
-                                                <th className="px-4 py-2 text-right">Total</th>
-                                                <th className="px-4 py-2 text-right">Anticipo</th>
-                                                <th className="px-4 py-2 text-right">Vigente</th>
-                                                <th className="px-4 py-2 text-right">+90d</th>
-                                                <th className="px-4 py-2 text-center">Mora máx.</th>
-                                              </tr>
-                                            </thead>
-                                            <tbody>
-                                              {ciu.clientes.map((cl, cli) => (
-                                                <tr key={cl.cliente_nit} className="border-t border-purple-100 hover:bg-purple-50">
-                                                  <td className="px-6 py-2 text-gray-400">{cli + 1}</td>
-                                                  <td className="px-4 py-2 font-semibold text-gray-900">{cl.cliente_nombre}</td>
-                                                  <td className="px-4 py-2 font-mono text-xs text-gray-500">{cl.cliente_nit}</td>
-                                                  <td className="px-4 py-2 text-right font-bold text-[#0f3460]">{fmtM(cl.total_deuda)}</td>
-                                                  <td className="px-4 py-2 text-right text-emerald-700 font-semibold">
-                                                    {(saldoByNit[cl.cliente_nit] ?? 0) > 0 ? fmtM(saldoByNit[cl.cliente_nit]) : <span className="text-gray-300">—</span>}
-                                                  </td>
-                                                  <td className="px-4 py-2 text-right text-green-700">{fmtM(cl.vigente)}</td>
-                                                  <td className="px-4 py-2 text-right text-red-900 font-bold">{fmtM(cl.dias_91_180 + cl.mas_180_dias)}</td>
-                                                  <td className="px-4 py-2 text-center">
-                                                    {cl.dias_mora_max > 0
-                                                      ? <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-bold">{cl.dias_mora_max}d</span>
-                                                      : <span className="text-green-600 text-xs">Al día</span>
-                                                    }
-                                                  </td>
+                                          <>
+                                            <table className="w-full text-sm border-t border-purple-100">
+                                              <thead className="bg-purple-200 text-purple-900">
+                                                <tr>
+                                                  <th className="px-6 py-2 text-left w-8">#</th>
+                                                  <th className="px-4 py-2 text-left">Cliente</th>
+                                                  <th className="px-4 py-2 text-left">NIT</th>
+                                                  <th className="px-4 py-2 text-right">Total</th>
+                                                  <th className="px-4 py-2 text-right">Anticipo</th>
+                                                  <th className="px-4 py-2 text-right">Vigente</th>
+                                                  <th className="px-4 py-2 text-right">+90d</th>
+                                                  <th className="px-4 py-2 text-center">Mora máx.</th>
                                                 </tr>
-                                              ))}
-                                            </tbody>
-                                            <tfoot className="bg-purple-100 border-t border-purple-200">
-                                              <tr>
-                                                <td colSpan={3} className="px-6 py-1.5 font-bold text-purple-800 text-xs uppercase">
-                                                  Total {ciu.ciudad}
-                                                </td>
-                                                <td className="px-4 py-1.5 text-right font-bold text-[#0f3460] text-sm">{fmtM(ciu.total_deuda)}</td>
-                                                <td className="px-4 py-1.5 text-right text-emerald-700 font-bold text-sm">
-                                                  {fmtM(ciu.clientes?.reduce((s: number, cl: { cliente_nit: string }) => s + (saldoByNit[cl.cliente_nit] ?? 0), 0) ?? 0)}
-                                                </td>
-                                                <td className="px-4 py-1.5 text-right text-green-700 font-bold text-sm">{fmtM(ciu.vigente)}</td>
-                                                <td className="px-4 py-1.5 text-right text-red-900 font-bold text-sm">{fmtM(ciu.dias_91_mas)}</td>
-                                                <td />
-                                              </tr>
-                                            </tfoot>
-                                          </table>
+                                              </thead>
+                                              <tbody>
+                                                {paginate(ciu.clientes, pagesCiudad[ciuKey] ?? 1).map((cl, cli) => (
+                                                  <tr key={cl.cliente_nit} className="border-t border-purple-100 hover:bg-purple-50">
+                                                    <td className="px-6 py-2 text-gray-400">{((pagesCiudad[ciuKey] ?? 1) - 1) * PAGE_SIZE + cli + 1}</td>
+                                                    <td className="px-4 py-2 font-semibold text-gray-900">{cl.cliente_nombre}</td>
+                                                    <td className="px-4 py-2 font-mono text-xs text-gray-500">{cl.cliente_nit}</td>
+                                                    <td className="px-4 py-2 text-right font-bold text-[#0f3460]">{fmtM(cl.total_deuda)}</td>
+                                                    <td className="px-4 py-2 text-right text-emerald-700 font-semibold">
+                                                      {(saldoByNit[cl.cliente_nit] ?? 0) > 0 ? fmtM(saldoByNit[cl.cliente_nit]) : <span className="text-gray-300">—</span>}
+                                                    </td>
+                                                    <td className="px-4 py-2 text-right text-green-700">{fmtM(cl.vigente)}</td>
+                                                    <td className="px-4 py-2 text-right text-red-900 font-bold">{fmtM(cl.dias_91_180 + cl.mas_180_dias)}</td>
+                                                    <td className="px-4 py-2 text-center">
+                                                      {cl.dias_mora_max > 0
+                                                        ? <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-bold">{cl.dias_mora_max}d</span>
+                                                        : <span className="text-green-600 text-xs">Al día</span>
+                                                      }
+                                                    </td>
+                                                  </tr>
+                                                ))}
+                                              </tbody>
+                                              <tfoot className="bg-purple-100 border-t border-purple-200">
+                                                <tr>
+                                                  <td colSpan={3} className="px-6 py-1.5 font-bold text-purple-800 text-xs uppercase">
+                                                    Total {ciu.ciudad}
+                                                  </td>
+                                                  <td className="px-4 py-1.5 text-right font-bold text-[#0f3460] text-sm">{fmtM(ciu.total_deuda)}</td>
+                                                  <td className="px-4 py-1.5 text-right text-emerald-700 font-bold text-sm">
+                                                    {fmtM(ciu.clientes?.reduce((s: number, cl: { cliente_nit: string }) => s + (saldoByNit[cl.cliente_nit] ?? 0), 0) ?? 0)}
+                                                  </td>
+                                                  <td className="px-4 py-1.5 text-right text-green-700 font-bold text-sm">{fmtM(ciu.vigente)}</td>
+                                                  <td className="px-4 py-1.5 text-right text-red-900 font-bold text-sm">{fmtM(ciu.dias_91_mas)}</td>
+                                                  <td />
+                                                </tr>
+                                              </tfoot>
+                                            </table>
+                                            {totalPages(ciu.clientes.length) > 1 && (
+                                              <div className="px-5 py-2 bg-purple-50 border-t border-purple-100">
+                                                <PaginationControls
+                                                  page={pagesCiudad[ciuKey] ?? 1}
+                                                  pages={totalPages(ciu.clientes.length)}
+                                                  onChange={p => setPagesCiudad(prev => ({ ...prev, [ciuKey]: p }))}
+                                                />
+                                              </div>
+                                            )}
+                                          </>
                                         )}
                                       </div>
                                     )
@@ -2042,7 +2054,7 @@ export const CarteraInforme = () => {
           </section>
 
           {/* ── CARTERA POR LÍNEA COMERCIAL ──────────────────────────── */}
-          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <section id="sec-linea" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-violet-100 rounded-xl">
@@ -2232,7 +2244,7 @@ export const CarteraInforme = () => {
             const carteraNeta = totalCartera - totalSaldoFavor
 
             return (
-              <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <section id="sec-anticipos" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                 {/* Header */}
                 <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
                   <div className="flex items-center gap-3">
@@ -2349,7 +2361,7 @@ export const CarteraInforme = () => {
           {/* ══════════════════════════════════════════════════════════════
               SECCIÓN — TABLERO POR COMERCIAL
           ══════════════════════════════════════════════════════════════ */}
-          <section className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <section id="sec-comercial" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-sky-100 rounded-xl">
