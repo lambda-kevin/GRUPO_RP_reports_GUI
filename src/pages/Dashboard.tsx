@@ -5,8 +5,8 @@ import {
   ResponsiveContainer, Cell,
 } from 'recharts'
 import {
-  TrendingUp, AlertTriangle, DollarSign, Users,
-  CheckCircle, XCircle, Clock, Activity, Search,
+  TrendingUp, DollarSign, Users,
+  CheckCircle, Clock, Activity, Search,
   Calendar, ShieldAlert, Building2, RefreshCw,
 } from 'lucide-react'
 import { getDashboardResumen } from '../api/dashboard'
@@ -25,7 +25,6 @@ const hasCartera = (c: unknown): c is CarteraResumen =>
 
 const hoy = () => new Date().toISOString().slice(0, 10)
 
-/** Parses a "YYYY-MM-DD" string as LOCAL date (avoids UTC-midnight timezone shift) */
 const parseLocalDate = (s: string) => {
   const [y, m, d] = s.split('-').map(Number)
   return new Date(y, m - 1, d)
@@ -120,7 +119,7 @@ export const Dashboard = () => {
     )
   }
 
-  const { bancos: bancosRaw, cartera: carteraRaw, pipelines, alertas } = data
+  const { bancos: bancosRaw, cartera: carteraRaw, pipelines } = data
   const bancos  = hasBancos(bancosRaw)   ? bancosRaw   : null
   const cartera = hasCartera(carteraRaw) ? carteraRaw  : null
 
@@ -135,11 +134,10 @@ export const Dashboard = () => {
       <div className="sticky top-0 z-20 bg-white border-b border-gray-200 shadow-sm">
         <div className="px-6 lg:px-10 py-4 flex flex-wrap items-center gap-4">
           <div className="min-w-[200px]">
-            <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">Panel Ejecutivo</h1>
-            <p className="text-xs text-gray-600 mt-0.5">Grupo RP — Cartera en tiempo real</p>
+            <h1 className="text-xl font-extrabold text-gray-900 tracking-tight">PANEL EJECUTIVO</h1>
+            <p className="text-xs text-gray-600 mt-0.5">GRUPO RP — Cartera en tiempo real</p>
           </div>
 
-          {/* Filtro fecha de corte */}
           <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 ml-auto">
             <Calendar className="h-4 w-4 text-gray-600 shrink-0" />
             <label className="text-sm font-semibold text-gray-700">Fecha de corte</label>
@@ -157,7 +155,6 @@ export const Dashboard = () => {
             </button>
           </div>
 
-          {/* Última actualización + refresh */}
           <div className="flex items-center gap-2 text-xs text-gray-600">
             {isFetching && <Spinner className="h-3.5 w-3.5" />}
             {ultimaActualizacion && <span>Act. {ultimaActualizacion}</span>}
@@ -170,28 +167,6 @@ export const Dashboard = () => {
 
       <div className="p-6 lg:p-10 space-y-8">
 
-        {/* ── ALERTAS ── */}
-        {alertas?.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {alertas.map((a, i) => {
-              const styles = {
-                ok:    { bg: 'bg-green-50 border-green-200',  icon: <CheckCircle className="h-5 w-5 text-green-600" />,  txt: 'text-green-800' },
-                warn:  { bg: 'bg-amber-50 border-amber-200',  icon: <AlertTriangle className="h-5 w-5 text-amber-500" />, txt: 'text-amber-800' },
-                error: { bg: 'bg-red-50 border-red-200',      icon: <XCircle className="h-5 w-5 text-red-600" />,        txt: 'text-red-800'   },
-              }[a.nivel] ?? { bg: 'bg-gray-50 border-gray-200', icon: null, txt: 'text-gray-700' }
-              return (
-                <div key={i} className={`rounded-xl border px-4 py-4 flex items-start gap-3 ${styles.bg}`}>
-                  <span className="mt-0.5 shrink-0">{styles.icon}</span>
-                  <div>
-                    <p className={`text-sm font-bold uppercase tracking-wide ${styles.txt}`}>{a.titulo}</p>
-                    <p className="text-sm text-gray-600 mt-0.5">{a.descripcion}</p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-
         {/* ── KPIs CARTERA ── */}
         {cartera ? (
           <>
@@ -199,7 +174,15 @@ export const Dashboard = () => {
               <h2 className="text-base font-extrabold text-gray-700 uppercase tracking-widest mb-3">
                 Cartera — Corte {format(parseLocalDate(cartera.fecha_corte), "d 'de' MMMM yyyy", { locale: es })}
               </h2>
+              {/* Orden: Sin mora · Cartera total · Cartera vencida · Mora crítica */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <KPI
+                  label="Sin mora (vigente)"
+                  value={fmtCOP(cartera.frescas)}
+                  sub="Cartera al corriente, sin vencimiento"
+                  icon={<CheckCircle className="h-5 w-5" />}
+                  color="gray"
+                />
                 <KPI
                   label="Cartera total"
                   value={fmtCOP(cartera.total_cartera)}
@@ -223,20 +206,13 @@ export const Dashboard = () => {
                   icon={<ShieldAlert className="h-5 w-5" />}
                   color="red"
                 />
-                <KPI
-                  label="Sin mora (vigente)"
-                  value={fmtCOP(cartera.frescas)}
-                  sub="Cartera al corriente, sin vencimiento"
-                  icon={<CheckCircle className="h-5 w-5" />}
-                  color="gray"
-                />
               </div>
             </div>
 
             {/* ── DISTRIBUCIÓN + TOP CRÍTICOS ── */}
             <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
 
-              {/* Distribución por tramo — 2 cols */}
+              {/* Distribución por tramo */}
               <Card className="shadow-sm lg:col-span-2">
                 <div className="p-5">
                   <h3 className="text-base font-extrabold text-gray-700 uppercase tracking-wide mb-4">
@@ -245,8 +221,8 @@ export const Dashboard = () => {
                   <ResponsiveContainer width="100%" height={220}>
                     <BarChart data={cartera.distribucion} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                      <XAxis dataKey="tramo" tick={{ fontSize: 10, fill: '#6b7280' }} />
-                      <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} tickFormatter={v => fmtCOPShort(v)} width={54} />
+                      <XAxis dataKey="tramo" tick={{ fontSize: 10, fill: '#111827' }} />
+                      <YAxis tick={{ fontSize: 10, fill: '#111827' }} tickFormatter={v => fmtCOPShort(v)} width={60} />
                       <Tooltip
                         formatter={(v: number) => fmtCOP(v as number)}
                         contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
@@ -258,19 +234,20 @@ export const Dashboard = () => {
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
-                  {/* Leyenda compacta */}
-                  <div className="flex flex-wrap gap-x-3 gap-y-1 mt-3">
+                  {/* Leyenda vertical con valores completos */}
+                  <div className="flex flex-col gap-1 mt-3">
                     {cartera.distribucion.filter(d => d.monto > 0).map(d => (
-                      <span key={d.tramo} className="flex items-center gap-1 text-xs text-gray-500">
-                        <span className="w-2.5 h-2.5 rounded-sm inline-block" style={{ background: TRAMO_COLORS[d.tramo] ?? '#94a3b8' }} />
-                        {d.tramo}: <strong className="text-gray-700">{fmtCOPShort(d.monto)}</strong>
+                      <span key={d.tramo} className="flex items-center gap-2 text-xs text-gray-900">
+                        <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: TRAMO_COLORS[d.tramo] ?? '#94a3b8' }} />
+                        <span className="w-16 shrink-0">{d.tramo}</span>
+                        <strong className="text-gray-900">{fmtCOP(d.monto)}</strong>
                       </span>
                     ))}
                   </div>
                 </div>
               </Card>
 
-              {/* Top críticos — 3 cols */}
+              {/* Top críticos */}
               <Card className="shadow-sm lg:col-span-3">
                 <div className="p-5">
                   <h3 className="text-base font-extrabold text-gray-700 uppercase tracking-wide mb-4">
@@ -283,31 +260,27 @@ export const Dashboard = () => {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {cartera.top_criticos.map((c, i) => {
-                        const pct = cartera.total_cartera > 0 ? (c.mora_90 / cartera.total_cartera) * 100 : 0
-                        return (
-                          <div key={i} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
-                            <span className="w-7 h-7 rounded-full bg-red-100 text-red-700 text-sm font-bold flex items-center justify-center shrink-0">
-                              {i + 1}
-                            </span>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-base font-semibold text-gray-800 truncate">{c.nombre}</p>
-                              <p className="text-sm text-gray-600 truncate">{c.ciudad}{c.vendedor ? ` · ${c.vendedor}` : ''}</p>
-                            </div>
-                            <div className="text-right shrink-0">
-                              <p className="text-base font-bold text-red-600">{fmtCOPShort(c.mora_90)}</p>
-                              <p className="text-sm text-gray-600">{fmtPct(pct)} del total</p>
-                            </div>
+                      {cartera.top_criticos.map((c, i) => (
+                        <div key={i} className="flex items-center gap-3 py-2.5 border-b border-gray-100 last:border-0">
+                          <span className="w-7 h-7 rounded-full bg-red-100 text-red-700 text-sm font-bold flex items-center justify-center shrink-0">
+                            {i + 1}
+                          </span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-base font-semibold text-gray-800 truncate">{c.nombre}</p>
+                            <p className="text-sm text-gray-600 truncate">{c.ciudad}{c.vendedor ? ` · ${c.vendedor}` : ''}</p>
                           </div>
-                        )
-                      })}
+                          <div className="text-right shrink-0">
+                            <p className="text-base font-bold text-gray-900">{fmtCOP(c.mora_90)}</p>
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
               </Card>
             </div>
 
-          {/* ── GRUPOS EMPRESARIALES en dashboard ── */}
+          {/* ── GRUPOS EMPRESARIALES ── */}
           {!!cartera.grupos_cartera?.length && (
             <div>
               <h2 className="text-base font-extrabold text-gray-700 uppercase tracking-widest mb-3">
@@ -319,12 +292,11 @@ export const Dashboard = () => {
                     className="rounded-xl border-l-4 bg-white border border-gray-100 shadow-sm p-3 flex flex-col gap-1"
                     style={{ borderLeftColor: gColorDash(g.grupo) }}>
                     <p className="text-xs font-bold text-gray-700 truncate">{g.grupo.replace('Grupo ', '')}</p>
-                    <p className="text-lg font-extrabold" style={{ color: gColorDash(g.grupo) }}>
-                      {fmtCOPShort(g.total_deuda)}
+                    <p className="text-base font-extrabold text-gray-900 break-all">
+                      {fmtCOP(g.total_deuda)}
                     </p>
-                    <p className="text-xs text-gray-500">{g.porcentaje}% del total</p>
                     {g.mora_90 > 0 && (
-                      <p className="text-xs font-semibold text-red-600">{fmtCOPShort(g.mora_90)} mora</p>
+                      <p className="text-xs font-semibold text-red-600">{fmtCOP(g.mora_90)} mora</p>
                     )}
                     <p className="text-xs text-gray-400">{g.clientes_count} inst.</p>
                   </div>
@@ -345,7 +317,6 @@ export const Dashboard = () => {
         {/* ── BANCOS + PIPELINES ── */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* Bancos */}
           {bancos && (
             <Card className="shadow-sm">
               <div className="p-5">
@@ -402,7 +373,6 @@ export const Dashboard = () => {
             </Card>
           )}
 
-          {/* Pipelines */}
           <Card className="shadow-sm">
             <div className="p-5">
               <div className="flex items-center justify-between mb-4">

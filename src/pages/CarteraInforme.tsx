@@ -9,11 +9,11 @@ import {
   Wallet,
   AlertTriangle, Clock, ChevronDown, ChevronRight,
   Calendar, MapPin, UserCheck, Search, ShieldAlert, CheckCircle, Mail,
-  Settings, X, Trash2, ToggleLeft, ToggleRight, UserPlus, Building2, ChevronUp, Layers, Users,
+  Settings, X, Trash2, ToggleLeft, ToggleRight, UserPlus, Building2, ChevronUp, Users,
 } from 'lucide-react'
 import {
   getCartera, getProximosVencimientos,
-  getCarteraRegiones, getFacturas, getCarteraGrupos, getCarteraLineas,
+  getCarteraRegiones, getFacturas, getCarteraGrupos,
   getSaldoFavor, getCarteraAsesores,
   enviarReporteCartera,
   getDestinatariosCartera, crearDestinatarioCartera,
@@ -23,16 +23,15 @@ import {
   type FiltroFecha, type Destinatario, type GrupoEmpresarial as GrupoEmpresarialAPI,
 } from '../api/dashboard'
 import { Spinner } from '../components/ui/Spinner'
-import { fmtCOP, fmtCOPShort, fmtPct } from '../utils/fmt'
+import { fmtCOP, fmtPct } from '../utils/fmt'
 import type {
   SnapCartera, Factura, ProximoVencimiento,
-  CiudadAgregada, RegionAgregada, GrupoAgregado, ParetoClienteItem, LineaAgregada,
+  CiudadAgregada, RegionAgregada, GrupoAgregado, ParetoClienteItem,
   SaldoFavorItem, AsesorItem, AsesorCliente,
 } from '../types'
 
-// Aliases locales para uso conciso en este módulo
-const fmt   = fmtCOP       // formato completo: $1.234.567
-const fmtM  = fmtCOPShort  // abreviado: $1,2M / $234K
+const fmt  = fmtCOP
+const fmtM = fmtCOP
 
 const PAGE_SIZE = 10
 const totalPages = (items: number) => Math.max(1, Math.ceil(items / PAGE_SIZE))
@@ -109,19 +108,27 @@ const TooltipVencida = ({ b, vencida }: { b: VBuckets; vencida: number }) => {
       </span>
       {pos && (
         <div
-          className="fixed z-[9999] bg-white border border-gray-200 rounded-xl shadow-xl px-4 py-3 text-xs w-52 pointer-events-none"
-          style={{ left: Math.max(8, pos.x - 220), top: Math.max(8, pos.y - 220) }}
+          className="fixed z-[9999] pointer-events-none bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden w-64"
+          style={{ left: Math.max(8, pos.x - 260), top: Math.max(8, pos.y - 240) }}
         >
-          <p className="font-bold text-gray-700 border-b border-gray-100 pb-1.5 mb-2 text-sm">Desglose mora</p>
-          {tramos.map(({ label, val, cls }) => (
-            <div key={label} className="flex justify-between gap-3 mb-1.5 last:mb-0">
-              <span className={cls}>{label}</span>
-              <span className="font-semibold text-gray-800 tabular-nums">{fmtM(val)}</span>
-            </div>
-          ))}
-          <div className="flex justify-between gap-3 border-t border-gray-100 pt-1.5 mt-1.5">
-            <span className="text-gray-500 font-medium">Total</span>
-            <span className="font-bold text-orange-600 tabular-nums">{fmtM(vencida)}</span>
+          {/* Header */}
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+            <div className="w-1.5 h-3.5 rounded-full bg-orange-400 shrink-0" />
+            <span className="text-xs font-bold text-gray-700 uppercase tracking-widest">Desglose mora</span>
+          </div>
+          {/* Rows */}
+          <div className="px-4 py-2 space-y-1.5">
+            {tramos.map(({ label, val, cls }) => (
+              <div key={label} className="flex items-center justify-between gap-4">
+                <span className={`text-xs font-semibold ${cls} shrink-0`}>{label}</span>
+                <span className="text-xs font-bold text-gray-800 tabular-nums">{fmtM(val)}</span>
+              </div>
+            ))}
+          </div>
+          {/* Total */}
+          <div className="flex items-center justify-between gap-4 mx-3 mb-3 mt-1 px-3 py-2 rounded-xl bg-orange-50 border border-orange-200">
+            <span className="text-xs font-bold text-orange-600 uppercase tracking-wide shrink-0">Total</span>
+            <span className="text-xs font-extrabold text-orange-600 tabular-nums">{fmtM(vencida)}</span>
           </div>
         </div>
       )}
@@ -243,13 +250,13 @@ const FilaFacturas = ({ nit, cols, filtro, soloVigente }: { nit: string; cols: n
 
 const KPICard = ({
   label, value, sub, gradient, icon,
-}: { label: string; value: string; sub: string; gradient: string; icon: ReactNode }) => (
+}: { label: string; value: string; sub: ReactNode; gradient: string; icon: ReactNode }) => (
   <div className={`bg-gradient-to-br ${gradient} text-white rounded-2xl p-6 shadow-lg`}>
     <div className="flex items-start justify-between">
       <div className="flex-1">
         <p className="text-base font-medium opacity-90 mb-2 uppercase tracking-wide">{label}</p>
         <p className="text-2xl font-extrabold mb-1 leading-tight tabular-nums">{value}</p>
-        <p className="text-sm opacity-80">{sub}</p>
+        <div className="text-sm opacity-80">{sub}</div>
       </div>
       <div className="opacity-15 ml-3">{icon}</div>
     </div>
@@ -380,8 +387,8 @@ const GrupoParetoTooltip = ({ active, payload }: any) => {
   return (
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[230px]">
       <p className="font-extrabold text-gray-900 mb-2">{d.grupo}</p>
-      <p className="text-slate-700">Cartera: <strong>{fmtCOPShort(d.total_deuda)}</strong></p>
-      {d.ventas_anio > 0 && <p className="text-emerald-700">Ventas: <strong>{fmtCOPShort(d.ventas_anio)}</strong></p>}
+      <p className="text-slate-700">Cartera: <strong>{fmtCOP(d.total_deuda)}</strong></p>
+      {d.ventas_anio > 0 && <p className="text-emerald-700">Ventas: <strong>{fmtCOP(d.ventas_anio)}</strong></p>}
       {d.dias_cartera != null && <p className="text-indigo-600">Días cartera: <strong>{d.dias_cartera}d</strong></p>}
       <p className="text-blue-600 mt-1">% del total: <strong>{d.porcentaje}%</strong></p>
       <p className="text-purple-700">Acumulado: <strong>{d.porcentaje_acumulado}%</strong></p>
@@ -397,8 +404,8 @@ const ClienteParetoTooltip = ({ active, payload }: any) => {
     <div className="bg-white border border-gray-200 rounded-xl shadow-lg px-4 py-3 text-sm min-w-[240px]">
       <p className="font-extrabold text-gray-900 mb-1 break-words whitespace-normal">{d.cliente_nombre}</p>
       <p className="text-xs text-gray-500 mb-2">{d.grupo} · {d.ciudad || '—'}</p>
-      <p className="text-slate-700">Cartera: <strong>{fmtCOPShort(d.total_deuda)}</strong></p>
-      {d.ventas_anio > 0 && <p className="text-emerald-700">Ventas: <strong>{fmtCOPShort(d.ventas_anio)}</strong></p>}
+      <p className="text-slate-700">Cartera: <strong>{fmtCOP(d.total_deuda)}</strong></p>
+      {d.ventas_anio > 0 && <p className="text-emerald-700">Ventas: <strong>{fmtCOP(d.ventas_anio)}</strong></p>}
       {d.dias_cartera != null && <p className="text-indigo-600">Días cartera: <strong>{d.dias_cartera}d</strong></p>}
       <p className="text-purple-700 mt-1">% acumulado: <strong>{d.porcentaje_acumulado}%</strong></p>
     </div>
@@ -416,24 +423,23 @@ export const CarteraInforme = () => {
   const [expRegionesCiudades,setExpRegionesCiudades]= useState<Set<string>>(new Set())
   const [pagesCiudad,        setPagesCiudad]        = useState<Record<string, number>>({})
   const [expGrupos,          setExpGrupos]          = useState<Set<string>>(new Set())
-  const [expLineas,          setExpLineas]          = useState<Set<string>>(new Set())
   const [expAsesores,        setExpAsesores]        = useState<Set<string>>(new Set())
 
   const [tabGrupos,          setTabGrupos]          = useState<'pareto' | 'detalle' | 'edades'>('pareto')
   const [vistaPareto,        setVistaPareto]        = useState<'macro' | 'micro'>('macro')
+  const [pageMicro,          setPageMicro]          = useState(1)
   const [filtroRiesgo,       setFiltroRiesgo]       = useState<string>('todos')
   const [pageCarteraEdades,  setPageCarteraEdades]  = useState(1)
   const [pageProximos,       setPageProximos]       = useState(1)
   const [pageRegiones,       setPageRegiones]       = useState(1)
-  const [pageLineas,         setPageLineas]         = useState(1)
   const [pageSaldo,          setPageSaldo]          = useState(1)
   const [pageAsesores,       setPageAsesores]       = useState(1)
+  const [pagesAsesorCli,     setPagesAsesorCli]     = useState<Record<string, number>>({})
   const [showSinInfo,        setShowSinInfo]        = useState(false)
 
   // Búsqueda por sección
   const [busEdades,      setBusEdades]      = useState('')
   const [busRegiones,    setBusRegiones]    = useState('')
-  const [busLineas,      setBusLineas]      = useState('')
   const [busSaldo,       setBusSaldo]       = useState('')
   const [busAsesores,    setBusAsesores]    = useState('')
 
@@ -612,7 +618,6 @@ export const CarteraInforme = () => {
   const carteraQ    = useQuery({ queryKey: ['cartera', filtro],     queryFn: () => getCartera(filtro) })
   const proximosQ   = useQuery({ queryKey: ['proximos'],             queryFn: getProximosVencimientos })
   const regionesQ   = useQuery({ queryKey: ['regiones', filtro],    queryFn: () => getCarteraRegiones(filtro) })
-  const lineasQ     = useQuery({ queryKey: ['lineas', filtro],      queryFn: () => getCarteraLineas(filtro) })
   const anioVentasParam = filtro.fecha_hasta
     ? parseInt(filtro.fecha_hasta.slice(0, 4), 10)
     : new Date().getFullYear()
@@ -669,9 +674,6 @@ export const CarteraInforme = () => {
   const totalVentas     = gruposData?.total_ventas ?? 0
   const anioVentas      = gruposData?.anio_ventas ?? anioVentasParam
 
-  const lineasData      = lineasQ.data
-  const lineas          = lineasData?.lineas ?? []
-  const totalGeneralLineas = lineasData?.total_general ?? 0
 
   const saldoFavorClientes: SaldoFavorItem[] = saldoFavorQ.data?.clientes ?? []
   const totalSaldoFavor = saldoFavorQ.data?.total_saldo_favor ?? 0
@@ -781,16 +783,16 @@ export const CarteraInforme = () => {
                 <button
                   onClick={handleEnviarReporte}
                   disabled={enviando}
-                  className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all border whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm transition-all shadow-sm whitespace-nowrap ${
                     enviado
-                      ? 'bg-emerald-500 border-emerald-400 text-white'
+                      ? 'bg-emerald-400 text-white shadow-emerald-900/30'
                       : errorEnvio
-                        ? 'bg-red-500 border-red-400 text-white'
-                        : 'bg-white/15 border-white/30 text-white hover:bg-white/25'
+                        ? 'bg-red-400 text-white'
+                        : 'bg-white text-gray-800 hover:bg-gray-100'
                   } disabled:opacity-60 disabled:cursor-not-allowed`}
                 >
                   {enviando
-                    ? <Spinner className="h-4 w-4 text-white" />
+                    ? <Spinner className="h-4 w-4" />
                     : enviado
                       ? <CheckCircle className="h-4 w-4" />
                       : <Mail className="h-4 w-4" />}
@@ -803,8 +805,8 @@ export const CarteraInforme = () => {
                     title="Configurar"
                     className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm font-semibold transition-colors ${
                       showConfigMenu
-                        ? 'bg-white/20 border-white/40 text-white'
-                        : 'border-white/30 text-white/70 hover:bg-white/15 hover:text-white'
+                        ? 'bg-white/20 border-white/50 text-white'
+                        : 'bg-white/10 border-white/40 text-white hover:bg-white/20'
                     }`}
                   >
                     <Settings className="h-4 w-4" />
@@ -836,11 +838,9 @@ export const CarteraInforme = () => {
                   )}
                 </div>
               </div>
-              <span className="text-xs text-white/40 whitespace-nowrap">
-                {errorEnvio
-                  ? <span className="text-red-300">{errorEnvio}</span>
-                  : 'Auto 7:50 AM · L–V'}
-              </span>
+              {errorEnvio && (
+                <span className="text-xs text-red-300 whitespace-nowrap">{errorEnvio}</span>
+              )}
             </div>
 
           </div>
@@ -1109,13 +1109,16 @@ export const CarteraInforme = () => {
         <KPICard label="Total Cartera"
           value={fmt(totalCartera)}
           sub={totalSaldoFavor > 0
-            ? `−${fmt(totalSaldoFavor)} anticipos · neto ${fmt(totalCartera - totalSaldoFavor)}`
+            ? (<>
+                <p>Valor Anticipos: {fmt(totalSaldoFavor)}</p>
+                <p>Total Cartera - Anticipos: {fmt(totalCartera - totalSaldoFavor)}</p>
+              </>)
             : `${cartera.length} clientes activos`}
           gradient="from-indigo-600 to-indigo-800"
           icon={<Wallet className="h-20 w-20" />} />
         <KPICard label="Cartera Vencida"
           value={fmt(totalVencida)}
-          sub={`${totalCartera > 0 ? fmtPct((totalVencida/totalCartera)*100) : '0%'} del total`}
+          sub={`${totalCartera > 0 ? fmtPct((totalVencida/totalCartera)*100) : '0%'} del Total Cartera`}
           gradient="from-red-700 to-red-900"
           icon={<AlertTriangle className="h-20 w-20" />} />
         <KPICard label="Mora +90 Días"
@@ -1140,8 +1143,7 @@ export const CarteraInforme = () => {
             <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
               <SectionHeader
                 icon={<UserCheck className="h-7 w-7" />}
-                title="CARTERA GRUPOS"
-                count={`${grupos.filter(g => g.grupo !== 'Otros').length} grupos`}
+                title="CARTERA POR GRUPO"
                 color="indigo"
               />
               {totalVentas > 0 && (
@@ -1155,15 +1157,15 @@ export const CarteraInforme = () => {
             {/* Tabs */}
             <div className="flex gap-1 mb-6 border-b border-gray-200">
               {([
-                { key: 'pareto',  label: 'Pareto & Rentabilidad' },
-                { key: 'detalle', label: 'Detalle por grupo' },
-                { key: 'edades',  label: 'Edades de cartera' },
+                { key: 'pareto',  label: 'PARETO' },
+                { key: 'detalle', label: 'DETALLE POR GRUPO' },
+                { key: 'edades',  label: 'EDADES DE CARTERA' },
               ] as const).map(t => (
                 <button key={t.key} onClick={() => setTabGrupos(t.key)}
                   className={`px-4 py-2 text-sm font-semibold rounded-t-lg border-b-2 transition-colors ${
                     tabGrupos === t.key
                       ? 'border-indigo-600 text-indigo-700 bg-indigo-50'
-                      : 'border-transparent text-gray-500 hover:text-gray-700'
+                      : 'border-transparent text-gray-900 hover:text-gray-700'
                   }`}>
                   {t.label}
                 </button>
@@ -1196,9 +1198,9 @@ export const CarteraInforme = () => {
                   {/* KPIs */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                     <div className="bg-indigo-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-gray-500 font-medium">Cartera grupos</p>
-                      <p className="text-sm font-extrabold text-[#0f3460] tabular-nums">
-                        {fmt(grupos.filter(g => g.grupo !== 'Otros').reduce((s, g) => s + g.total_deuda, 0))}
+                      <p className="text-xs text-gray-900 font-bold uppercase tracking-wide">Total Cartera Grupos</p>
+                      <p className="text-sm font-extrabold text-gray-900 tabular-nums">
+                        {fmt(totalCartera)}
                       </p>
                     </div>
                     {totalVentas > 0 && (
@@ -1208,8 +1210,8 @@ export const CarteraInforme = () => {
                       </div>
                     )}
                     <div className="bg-red-50 rounded-xl p-3 text-center">
-                      <p className="text-xs text-gray-500 font-medium">Mora +90d (grupos)</p>
-                      <p className="text-sm font-extrabold text-red-700 tabular-nums">
+                      <p className="text-xs text-gray-900 font-bold uppercase tracking-wide leading-tight">GRUPOS<br />MORA + 90 DÍAS</p>
+                      <p className="text-sm font-extrabold text-gray-900 tabular-nums">
                         {fmt(grupos.reduce((s, g) => s + g.mora_90, 0))}
                       </p>
                     </div>
@@ -1218,14 +1220,14 @@ export const CarteraInforme = () => {
                   {/* Toggle Macro / Micro */}
                   <div className="flex gap-2 mb-5">
                     {([
-                      { key: 'macro', label: 'Vista Macro — por grupo' },
-                      { key: 'micro', label: 'Vista Micro — por cliente' },
+                      { key: 'macro', label: 'VISTA POR GRUPO' },
+                      { key: 'micro', label: 'VISTA POR CLIENTE' },
                     ] as const).map(v => (
-                      <button key={v.key} onClick={() => setVistaPareto(v.key)}
+                      <button key={v.key} onClick={() => { setVistaPareto(v.key); setPageMicro(1) }}
                         className={`px-4 py-2 rounded-xl text-sm font-bold border transition-all ${
                           vistaPareto === v.key
                             ? 'bg-indigo-600 text-white border-indigo-600'
-                            : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'
+                            : 'bg-white text-gray-900 border-gray-300 hover:border-indigo-400'
                         }`}>
                         {v.label}
                       </button>
@@ -1355,54 +1357,75 @@ export const CarteraInforme = () => {
                       </ResponsiveContainer>
 
                       {/* Tabla micro */}
-                      <div className="overflow-x-auto rounded-xl border border-indigo-200 mt-4">
-                        <table className="w-full text-sm">
-                          <thead className="bg-[#1a1a2e] text-white text-xs">
-                            <tr>
-                              <th className="px-3 py-2.5 text-right w-8">#</th>
-                              <th className="px-4 py-2.5 text-left">Cliente</th>
-                              <th className="px-4 py-2.5 text-left">Grupo</th>
-                              <th className="px-4 py-2.5 text-left">Ciudad</th>
-                              <th className="px-4 py-2.5 text-right">Cartera</th>
-                              <th className="px-4 py-2.5 text-right">Anticipo</th>
-                              {totalVentas > 0 && <th className="px-4 py-2.5 text-right">Ventas</th>}
-                              {totalVentas > 0 && <th className="px-4 py-2.5 text-right" title="Días de cobranza">Días cob.</th>}
-                              <th className="px-4 py-2.5 text-right">Mora +90d</th>
-                              <th className="px-4 py-2.5 text-right">%</th>
-                              <th className="px-4 py-2.5 text-right">% Acum.</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {paretoClientes.map((c, i) => (
-                              <tr key={`${c.cliente_nit}-${i}`}
-                                className={`border-t border-gray-100 hover:bg-indigo-50 transition-colors ${c.porcentaje_acumulado > 80 ? 'opacity-50' : ''}`}>
-                                <td className="px-3 py-2 text-right text-gray-400 font-mono text-xs">{i + 1}</td>
-                                <td className="px-4 py-2 font-semibold text-gray-900 max-w-[200px] truncate">{c.cliente_nombre}</td>
-                                <td className="px-4 py-2">
-                                  <span className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: grupoColor(c.grupo) }}>
-                                    <span className="w-2 h-2 rounded-full" style={{ background: grupoColor(c.grupo) }} />
-                                    {c.grupo.replace('Grupo ', '')}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-2 text-gray-500 text-xs">{c.ciudad || '—'}</td>
-                                <td className="px-4 py-2 text-right font-extrabold text-[#0f3460]">{fmtM(c.total_deuda)}</td>
-                                <td className="px-4 py-2 text-right text-emerald-700 font-semibold">
-                                  {(saldoByNit[c.cliente_nit] ?? 0) > 0 ? fmtM(saldoByNit[c.cliente_nit]) : <span className="text-gray-300">—</span>}
-                                </td>
-                                {totalVentas > 0 && <td className="px-4 py-2 text-right text-emerald-700">{c.ventas_anio > 0 ? fmtM(c.ventas_anio) : <span className="text-gray-300">—</span>}</td>}
-                                {totalVentas > 0 && <td className="px-4 py-2 text-right">
-                                  {c.dias_cartera != null
-                                    ? <span className={`font-bold text-xs ${c.dias_cartera > 180 ? 'text-red-700' : c.dias_cartera > 90 ? 'text-orange-600' : 'text-green-700'}`}>{c.dias_cartera}d</span>
-                                    : <span className="text-gray-300">—</span>}
-                                </td>}
-                                <td className="px-4 py-2 text-right font-bold text-red-700">{c.mora_90 > 0 ? fmtM(c.mora_90) : <span className="text-green-600 text-xs">—</span>}</td>
-                                <td className="px-4 py-2 text-right text-gray-600 text-xs">{c.porcentaje}%</td>
-                                <td className="px-4 py-2 text-right font-bold text-purple-700">{c.porcentaje_acumulado}%</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                      {(() => {
+                        const microPages = totalPages(paretoClientes.length)
+                        const microItems = paginate(paretoClientes, pageMicro)
+                        const microOffset = (pageMicro - 1) * PAGE_SIZE
+                        return (
+                          <div className="rounded-xl border border-indigo-200 mt-4 overflow-hidden">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead className="bg-[#1a1a2e] text-white text-xs">
+                                  <tr>
+                                    <th className="px-3 py-2.5 text-right w-8">#</th>
+                                    <th className="px-4 py-2.5 text-left">Cliente</th>
+                                    <th className="px-4 py-2.5 text-left">Grupo</th>
+                                    <th className="px-4 py-2.5 text-left">Ciudad</th>
+                                    <th className="px-4 py-2.5 text-right">Cartera</th>
+                                    <th className="px-4 py-2.5 text-right">Anticipo</th>
+                                    {totalVentas > 0 && <th className="px-4 py-2.5 text-right">Ventas</th>}
+                                    {totalVentas > 0 && <th className="px-4 py-2.5 text-right" title="Días de cobranza">Días cob.</th>}
+                                    <th className="px-4 py-2.5 text-right">Mora +90d</th>
+                                    <th className="px-4 py-2.5 text-right">%</th>
+                                    <th className="px-4 py-2.5 text-right">% Acum.</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {microItems.map((c, i) => {
+                                    const globalIdx = microOffset + i
+                                    return (
+                                      <tr key={`${c.cliente_nit}-${globalIdx}`}
+                                        className={`border-t border-gray-100 hover:bg-indigo-50 transition-colors ${c.porcentaje_acumulado > 80 ? 'opacity-50' : ''}`}>
+                                        <td className="px-3 py-2 text-right text-gray-400 font-mono text-xs">{globalIdx + 1}</td>
+                                        <td className="px-4 py-2 font-semibold text-gray-900 max-w-[200px] truncate">{c.cliente_nombre}</td>
+                                        <td className="px-4 py-2">
+                                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: grupoColor(c.grupo) }}>
+                                            <span className="w-2 h-2 rounded-full" style={{ background: grupoColor(c.grupo) }} />
+                                            {c.grupo.replace('Grupo ', '')}
+                                          </span>
+                                        </td>
+                                        <td className="px-4 py-2 text-gray-500 text-xs">{c.ciudad || '—'}</td>
+                                        <td className="px-4 py-2 text-right font-extrabold text-[#0f3460]">{fmtM(c.total_deuda)}</td>
+                                        <td className="px-4 py-2 text-right text-emerald-700 font-semibold">
+                                          {(saldoByNit[c.cliente_nit] ?? 0) > 0 ? fmtM(saldoByNit[c.cliente_nit]) : <span className="text-gray-300">—</span>}
+                                        </td>
+                                        {totalVentas > 0 && <td className="px-4 py-2 text-right text-emerald-700">{c.ventas_anio > 0 ? fmtM(c.ventas_anio) : <span className="text-gray-300">—</span>}</td>}
+                                        {totalVentas > 0 && <td className="px-4 py-2 text-right">
+                                          {c.dias_cartera != null
+                                            ? <span className={`font-bold text-xs ${c.dias_cartera > 180 ? 'text-red-700' : c.dias_cartera > 90 ? 'text-orange-600' : 'text-green-700'}`}>{c.dias_cartera}d</span>
+                                            : <span className="text-gray-300">—</span>}
+                                        </td>}
+                                        <td className="px-4 py-2 text-right font-bold text-red-700">{c.mora_90 > 0 ? fmtM(c.mora_90) : <span className="text-green-600 text-xs">—</span>}</td>
+                                        <td className="px-4 py-2 text-right text-gray-600 text-xs">{c.porcentaje}%</td>
+                                        <td className="px-4 py-2 text-right font-bold text-purple-700">{c.porcentaje_acumulado}%</td>
+                                      </tr>
+                                    )
+                                  })}
+                                </tbody>
+                              </table>
+                            </div>
+                            {microPages > 1 && (
+                              <div className="px-5 py-2 bg-indigo-50 border-t border-indigo-100">
+                                <PaginationControls
+                                  page={pageMicro}
+                                  pages={microPages}
+                                  onChange={setPageMicro}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </div>
                   )}
                 </div>
@@ -1646,13 +1669,14 @@ export const CarteraInforme = () => {
                 <thead className="bg-[#1a1a2e] text-white text-sm">
                   <tr>
                     <th className="px-3 py-3 text-left w-10">#</th>
-                    <th className="px-3 py-3 text-left w-[26%]">Cliente</th>
-                    <th className="px-3 py-3 text-left w-[12%]">Ciudad</th>
-                    <th className="px-3 py-3 text-right w-[12%]">Anticipo</th>
-                    <th className="px-3 py-3 text-right w-[13%]">Total cartera</th>
-                    {filtroRiesgo !== 'ok' && <th className="px-3 py-3 text-right w-[12%]">Vencida</th>}
-                    {filtroRiesgo !== 'ok' && <th className="px-3 py-3 text-right w-[12%]">+90d</th>}
-                    <th className="px-3 py-3 text-center w-[13%]">Estado</th>
+                    <th className="px-3 py-3 text-left w-[22%]">Cliente</th>
+                    <th className="px-3 py-3 text-left w-[10%]">Ciudad</th>
+                    <th className="px-3 py-3 text-right w-[11%]">Anticipo</th>
+                    <th className="px-3 py-3 text-right w-[12%]">Total cartera</th>
+                    <th className="px-3 py-3 text-right w-[12%]">Neto</th>
+                    {filtroRiesgo !== 'ok' && <th className="px-3 py-3 text-right w-[11%]">Vencida</th>}
+                    {filtroRiesgo !== 'ok' && <th className="px-3 py-3 text-right w-[10%]">+90d</th>}
+                    <th className="px-3 py-3 text-center w-[12%]">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1673,7 +1697,7 @@ export const CarteraInforme = () => {
                               {isOpen
                                 ? <ChevronDown className="h-5 w-5 text-[#0f3460] shrink-0" />
                                 : <ChevronRight className="h-5 w-5 text-gray-400 shrink-0" />}
-                              <span className="max-w-[220px] truncate text-base lg:text-lg font-bold" title={c.cliente_nombre}>
+                              <span className="text-sm font-bold leading-snug" title={c.cliente_nombre}>
                                 {c.cliente_nombre}
                               </span>
                             </div>
@@ -1689,6 +1713,16 @@ export const CarteraInforme = () => {
                             <span className="font-extrabold text-[#0f3460]">
                               {filtroRiesgo === 'ok' ? fmtM(c.vigente) : fmtM(c.total_deuda)}
                             </span>
+                          </td>
+                          <td className="px-3 py-4 text-right whitespace-nowrap align-top">
+                            {(() => {
+                              const anticipo = saldoByNit[c.cliente_nit] ?? 0
+                              const base = filtroRiesgo === 'ok' ? c.vigente : c.total_deuda
+                              const neto = base - anticipo
+                              return neto < 0
+                                ? <span className="font-bold text-green-600">{fmtM(neto)}</span>
+                                : <span className="font-bold text-gray-800">{fmtM(neto)}</span>
+                            })()}
                           </td>
                           {filtroRiesgo !== 'ok' && (
                             <td className="px-3 py-4 text-right whitespace-nowrap align-top">
@@ -1706,7 +1740,7 @@ export const CarteraInforme = () => {
                             </span>
                           </td>
                         </tr>
-                        {isOpen && <FilaFacturas nit={c.cliente_nit} cols={filtroRiesgo === 'ok' ? 6 : 8} filtro={filtro} soloVigente={filtroRiesgo === 'ok'} />}
+                        {isOpen && <FilaFacturas nit={c.cliente_nit} cols={filtroRiesgo === 'ok' ? 7 : 9} filtro={filtro} soloVigente={filtroRiesgo === 'ok'} />}
                       </Fragment>
                     )
                   })}
@@ -1726,6 +1760,12 @@ export const CarteraInforme = () => {
                           {fmtM(filtroRiesgo === 'ok'
                             ? fil.reduce((s,c)=>s+c.vigente,0)
                             : fil.reduce((s,c)=>s+c.total_deuda,0))}
+                        </td>
+                        <td className="px-3 py-3 text-right font-extrabold text-gray-800">
+                          {fmtM(fil.reduce((s,c)=>{
+                            const base = filtroRiesgo === 'ok' ? c.vigente : c.total_deuda
+                            return s + base - (saldoByNit[c.cliente_nit] ?? 0)
+                          }, 0))}
                         </td>
                         {filtroRiesgo !== 'ok' && (() => {
                           const tb: VBuckets = {
@@ -2053,179 +2093,6 @@ export const CarteraInforme = () => {
             />
           </section>
 
-          {/* ── CARTERA POR LÍNEA COMERCIAL ──────────────────────────── */}
-          <section id="sec-linea" className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-violet-100 rounded-xl">
-                  <Layers size={20} className="text-violet-600" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-lg font-bold text-gray-900 tracking-tight">CARTERA POR LÍNEA</h2>
-                    <span className="text-xs font-semibold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">En construcción</span>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-0.5">{lineas.length} líneas · {fmtCOPShort(totalGeneralLineas)} total</p>
-                </div>
-              </div>
-              {lineasQ.isFetching && <Spinner />}
-            </div>
-
-            {/* Búsqueda */}
-            <div className="relative mb-4">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                value={busLineas}
-                onChange={e => { setBusLineas(e.target.value); setPageLineas(1) }}
-                placeholder="Buscar por línea comercial..."
-                className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"
-              />
-            </div>
-
-            {lineasQ.isLoading ? (
-              <div className="flex justify-center py-12"><Spinner /></div>
-            ) : lineas.length === 0 ? (
-              <p className="text-center text-gray-400 py-12">Sin datos de líneas comerciales.</p>
-            ) : (() => {
-              const lineasFiltradas = lineas.filter((l: LineaAgregada) =>
-                l.linea.toLowerCase().includes(busLineas.toLowerCase())
-              )
-              const LINEAS_PER_PAGE = 10
-              const lineasPages = Math.max(1, Math.ceil(lineasFiltradas.length / LINEAS_PER_PAGE))
-              const lineasPage  = Math.min(pageLineas, lineasPages)
-              const lineasItems = lineasFiltradas.slice((lineasPage - 1) * LINEAS_PER_PAGE, lineasPage * LINEAS_PER_PAGE)
-
-              return (
-                <>
-                  <div className="overflow-x-auto rounded-xl border border-gray-100">
-                    <table className="w-full text-sm">
-                      <thead className="bg-gray-50 text-gray-500 uppercase text-xs">
-                        <tr>
-                          <th className="px-4 py-3 text-left w-6"></th>
-                          <th className="px-4 py-3 text-left">Línea</th>
-                          <th className="px-4 py-3 text-right">Clientes</th>
-                          <th className="px-4 py-3 text-right">Total cartera</th>
-                          <th className="px-4 py-3 text-right">Vigente</th>
-                          <th className="px-4 py-3 text-right">Vencida</th>
-                          <th className="px-4 py-3 text-right">Mora +91d</th>
-                          <th className="px-4 py-3 text-right">% Total</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {lineasItems.map((l: LineaAgregada) => {
-                          const key = l.cod_vend || l.linea
-                          const expanded = expLineas.has(key)
-                          const pctVenc = l.total_deuda > 0 ? (l.total_vencida / l.total_deuda) * 100 : 0
-                          const critica = l.dias_91_mas
-                          return (
-                            <Fragment key={key}>
-                              <tr
-                                className="border-t border-gray-100 hover:bg-violet-50 transition-colors cursor-pointer"
-                                onClick={() => setExpLineas(toggleSet(expLineas, key))}
-                              >
-                                <td className="px-4 py-3 text-gray-400">
-                                  {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                                </td>
-                                <td className="px-4 py-3 font-semibold text-gray-900">{l.linea || '—'}</td>
-                                <td className="px-4 py-3 text-right text-gray-600">{l.clientes_count}</td>
-                                <td className="px-4 py-3 text-right font-extrabold text-[#0f3460]">{fmtCOPShort(l.total_deuda)}</td>
-                                <td className="px-4 py-3 text-right text-emerald-600">{fmtCOPShort(l.vigente)}</td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className={pctVenc > 30 ? 'text-red-600 font-bold' : 'text-orange-500'}>
-                                    {fmtCOPShort(l.total_vencida)}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className={critica > 0 ? 'text-red-700 font-bold' : 'text-gray-400'}>
-                                    {fmtCOPShort(critica)}
-                                  </span>
-                                </td>
-                                <td className="px-4 py-3 text-right">
-                                  <span className="inline-block px-2 py-0.5 rounded-full text-xs font-bold bg-violet-100 text-violet-700">
-                                    {l.porcentaje.toFixed(1)}%
-                                  </span>
-                                </td>
-                              </tr>
-
-                              {expanded && (
-                                <tr className="bg-violet-50/40">
-                                  <td colSpan={8} className="px-6 pb-4 pt-2">
-                                    <p className="text-xs font-semibold text-violet-600 uppercase mb-2 tracking-wide">
-                                      Clientes en {l.linea}
-                                    </p>
-                                    <table className="w-full text-xs">
-                                      <thead className="text-gray-400 uppercase">
-                                        <tr>
-                                          <th className="px-3 py-1 text-left">#</th>
-                                          <th className="px-3 py-1 text-left">Cliente</th>
-                                          <th className="px-3 py-1 text-left">NIT</th>
-                                          <th className="px-3 py-1 text-left">Ciudad</th>
-                                          <th className="px-3 py-1 text-right">Total deuda</th>
-                                          <th className="px-3 py-1 text-right">Vigente</th>
-                                          <th className="px-3 py-1 text-right">Mora +90d</th>
-                                          <th className="px-3 py-1 text-center">Mora máx.</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {(l.clientes ?? []).map((cl, ci) => {
-                                          const mora90 = (cl.dias_91_180 ?? 0) + (cl.mas_180_dias ?? 0)
-                                          return (
-                                            <tr key={cl.cliente_nit} className="border-t border-violet-100 hover:bg-violet-100/40">
-                                              <td className="px-3 py-2 text-gray-400">{ci + 1}</td>
-                                              <td className="px-3 py-2 font-semibold text-gray-900">{cl.cliente_nombre}</td>
-                                              <td className="px-3 py-2 font-mono text-gray-500">{cl.cliente_nit}</td>
-                                              <td className="px-3 py-2 text-gray-500">{cl.ciudad || '—'}</td>
-                                              <td className="px-3 py-2 text-right font-bold text-[#0f3460]">{fmtCOPShort(cl.total_deuda)}</td>
-                                              <td className="px-3 py-2 text-right text-emerald-600">{fmtCOPShort(cl.vigente)}</td>
-                                              <td className="px-3 py-2 text-right">
-                                                <span className={mora90 > 0 ? 'text-red-600 font-bold' : 'text-gray-400'}>
-                                                  {fmtCOPShort(mora90)}
-                                                </span>
-                                              </td>
-                                              <td className="px-3 py-2 text-center">
-                                                <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${
-                                                  (cl.dias_mora_max ?? 0) > 90 ? 'bg-red-100 text-red-700'
-                                                  : (cl.dias_mora_max ?? 0) > 30 ? 'bg-orange-100 text-orange-700'
-                                                  : (cl.dias_mora_max ?? 0) > 0  ? 'bg-yellow-100 text-yellow-700'
-                                                  : 'bg-gray-100 text-gray-400'
-                                                }`}>
-                                                  {(cl.dias_mora_max ?? 0) > 0 ? `+${cl.dias_mora_max}d` : 'Al día'}
-                                                </span>
-                                              </td>
-                                            </tr>
-                                          )
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </td>
-                                </tr>
-                              )}
-                            </Fragment>
-                          )
-                        })}
-                      </tbody>
-                      <tfoot className="bg-gray-50 border-t-2 border-gray-200 font-bold text-gray-700">
-                        <tr>
-                          <td colSpan={2} className="px-4 py-3">Total</td>
-                          <td className="px-4 py-3 text-right">{lineas.reduce((s: number, l: LineaAgregada) => s + l.clientes_count, 0)}</td>
-                          <td className="px-4 py-3 text-right text-[#0f3460]">{fmtCOPShort(totalGeneralLineas)}</td>
-                          <td className="px-4 py-3 text-right text-emerald-600">{fmtCOPShort(lineas.reduce((s: number, l: LineaAgregada) => s + l.vigente, 0))}</td>
-                          <td className="px-4 py-3 text-right text-orange-500">{fmtCOPShort(lineas.reduce((s: number, l: LineaAgregada) => s + l.total_vencida, 0))}</td>
-                          <td className="px-4 py-3 text-right text-red-600">{fmtCOPShort(lineas.reduce((s: number, l: LineaAgregada) => s + l.dias_91_mas, 0))}</td>
-                          <td className="px-4 py-3 text-right">100%</td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                  <PaginationControls
-                    page={lineasPage}
-                    pages={lineasPages}
-                    onChange={setPageLineas}
-                  />
-                </>
-              )
-            })()}
-          </section>
 
           {/* ══════════════════════════════════════════════════════════════
               SECCIÓN — CLIENTES CON ANTICIPO
@@ -2465,56 +2332,73 @@ export const CarteraInforme = () => {
                           </div>
                         </button>
 
-                        {isOpen && (
-                          <div className="border-t border-sky-200 overflow-x-auto">
-                            <table className="w-full text-sm">
-                              <thead className="bg-sky-100 text-sky-900 text-xs uppercase">
-                                <tr>
-                                  <th className="px-5 py-2 text-left w-8">#</th>
-                                  <th className="px-4 py-2 text-left">Cliente</th>
-                                  <th className="px-4 py-2 text-left">NIT</th>
-                                  <th className="px-4 py-2 text-left">Ciudad</th>
-                                  <th className="px-4 py-2 text-right">Cartera</th>
-                                  <th className="px-4 py-2 text-right">Vigente</th>
-                                  <th className="px-4 py-2 text-right">Mora +90d</th>
-                                  <th className="px-4 py-2 text-center">Mora máx.</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {a.clientes.map((cl: AsesorCliente, ci: number) => {
-                                  const mora90 = cl.dias_91_180 + cl.mas_180_dias
-                                  return (
-                                    <tr key={cl.cliente_nit} className="border-t border-sky-100 hover:bg-sky-50 transition-colors">
-                                      <td className="px-5 py-2.5 text-gray-400 text-xs">{ci + 1}</td>
-                                      <td className="px-4 py-2.5 font-semibold text-gray-900">{cl.cliente_nombre}</td>
-                                      <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{cl.cliente_nit}</td>
-                                      <td className="px-4 py-2.5 text-gray-500 text-xs">{cl.ciudad || '—'}</td>
-                                      <td className="px-4 py-2.5 text-right font-extrabold text-[#0f3460]">{fmtM(cl.total_deuda)}</td>
-                                      <td className="px-4 py-2.5 text-right text-green-700 font-semibold">{fmtM(cl.vigente)}</td>
-                                      <td className="px-4 py-2.5 text-right font-bold text-red-700">{mora90 > 0 ? fmtM(mora90) : <span className="text-green-600 text-xs font-semibold">Al día</span>}</td>
-                                      <td className="px-4 py-2.5 text-center">
-                                        {cl.dias_mora_max > 0
-                                          ? <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-bold">{cl.dias_mora_max}d</span>
-                                          : <span className="text-green-600 text-xs font-semibold">Al día</span>}
-                                      </td>
+                        {isOpen && (() => {
+                          const cliPg = pagesAsesorCli[a.asesor] ?? 1
+                          const cliPages = totalPages(a.clientes.length)
+                          const cliItems = paginate(a.clientes, cliPg)
+                          const offset   = (cliPg - 1) * PAGE_SIZE
+                          return (
+                            <>
+                              <div className="border-t border-sky-200 overflow-x-auto">
+                                <table className="w-full text-sm">
+                                  <thead className="bg-sky-100 text-sky-900 text-xs uppercase">
+                                    <tr>
+                                      <th className="px-5 py-2 text-left w-8">#</th>
+                                      <th className="px-4 py-2 text-left">Cliente</th>
+                                      <th className="px-4 py-2 text-left">NIT</th>
+                                      <th className="px-4 py-2 text-left">Ciudad</th>
+                                      <th className="px-4 py-2 text-right">Cartera</th>
+                                      <th className="px-4 py-2 text-right">Vigente</th>
+                                      <th className="px-4 py-2 text-right">Mora +90d</th>
+                                      <th className="px-4 py-2 text-center">Mora máx.</th>
                                     </tr>
-                                  )
-                                })}
-                              </tbody>
-                              <tfoot className="bg-sky-100 border-t-2 border-sky-200">
-                                <tr>
-                                  <td colSpan={4} className="px-5 py-1.5 font-bold text-sky-900 text-xs uppercase">
-                                    Total {a.asesor} · {a.clientes_count} clientes
-                                  </td>
-                                  <td className="px-4 py-1.5 text-right font-extrabold text-[#0f3460] text-sm">{fmtM(a.total_deuda)}</td>
-                                  <td className="px-4 py-1.5 text-right text-green-700 font-bold text-sm">{fmtM(a.vigente)}</td>
-                                  <td className="px-4 py-1.5 text-right text-red-700 font-bold text-sm">{a.mora_90 > 0 ? fmtM(a.mora_90) : '—'}</td>
-                                  <td />
-                                </tr>
-                              </tfoot>
-                            </table>
-                          </div>
-                        )}
+                                  </thead>
+                                  <tbody>
+                                    {cliItems.map((cl: AsesorCliente, ci: number) => {
+                                      const mora90 = cl.dias_91_180 + cl.mas_180_dias
+                                      return (
+                                        <tr key={cl.cliente_nit} className="border-t border-sky-100 hover:bg-sky-50 transition-colors">
+                                          <td className="px-5 py-2.5 text-gray-400 text-xs">{offset + ci + 1}</td>
+                                          <td className="px-4 py-2.5 font-semibold text-gray-900">{cl.cliente_nombre}</td>
+                                          <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{cl.cliente_nit}</td>
+                                          <td className="px-4 py-2.5 text-gray-500 text-xs">{cl.ciudad || '—'}</td>
+                                          <td className="px-4 py-2.5 text-right font-extrabold text-[#0f3460]">{fmtM(cl.total_deuda)}</td>
+                                          <td className="px-4 py-2.5 text-right text-green-700 font-semibold">{fmtM(cl.vigente)}</td>
+                                          <td className="px-4 py-2.5 text-right font-bold text-red-700">{mora90 > 0 ? fmtM(mora90) : <span className="text-green-600 text-xs font-semibold">Al día</span>}</td>
+                                          <td className="px-4 py-2.5 text-center">
+                                            {cl.dias_mora_max > 0
+                                              ? <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-bold">{cl.dias_mora_max}d</span>
+                                              : <span className="text-green-600 text-xs font-semibold">Al día</span>}
+                                          </td>
+                                        </tr>
+                                      )
+                                    })}
+                                  </tbody>
+                                  <tfoot className="bg-sky-100 border-t-2 border-sky-200">
+                                    <tr>
+                                      <td colSpan={4} className="px-5 py-1.5 font-bold text-sky-900 text-xs uppercase">
+                                        Total {a.asesor} · {a.clientes_count} clientes
+                                      </td>
+                                      <td className="px-4 py-1.5 text-right font-extrabold text-[#0f3460] text-sm">{fmtM(a.total_deuda)}</td>
+                                      <td className="px-4 py-1.5 text-right text-green-700 font-bold text-sm">{fmtM(a.vigente)}</td>
+                                      <td className="px-4 py-1.5 text-right text-red-700 font-bold text-sm">{a.mora_90 > 0 ? fmtM(a.mora_90) : '—'}</td>
+                                      <td />
+                                    </tr>
+                                  </tfoot>
+                                </table>
+                              </div>
+                              {cliPages > 1 && (
+                                <div className="px-5 py-2 bg-sky-50 border-t border-sky-100">
+                                  <PaginationControls
+                                    page={cliPg}
+                                    pages={cliPages}
+                                    onChange={p => setPagesAsesorCli(prev => ({ ...prev, [a.asesor]: p }))}
+                                  />
+                                </div>
+                              )}
+                            </>
+                          )
+                        })()}
                       </div>
                     )
                   })}
@@ -2585,45 +2469,62 @@ export const CarteraInforme = () => {
                                     </div>
                                   </div>
                                 </button>
-                                {isOpen && (
-                                  <div className="border-t border-gray-100 overflow-x-auto">
-                                    <table className="w-full text-sm">
-                                      <thead className="bg-gray-100 text-gray-600 text-xs uppercase">
-                                        <tr>
-                                          <th className="px-5 py-2 text-left w-8">#</th>
-                                          <th className="px-4 py-2 text-left">Cliente</th>
-                                          <th className="px-4 py-2 text-left">NIT</th>
-                                          <th className="px-4 py-2 text-left">Ciudad</th>
-                                          <th className="px-4 py-2 text-right">Cartera</th>
-                                          <th className="px-4 py-2 text-right">Vigente</th>
-                                          <th className="px-4 py-2 text-right">Mora +90d</th>
-                                          <th className="px-4 py-2 text-center">Mora máx.</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {a.clientes.map((cl: AsesorCliente, ci: number) => {
-                                          const mora90 = cl.dias_91_180 + cl.mas_180_dias
-                                          return (
-                                            <tr key={cl.cliente_nit} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
-                                              <td className="px-5 py-2.5 text-gray-400 text-xs">{ci + 1}</td>
-                                              <td className="px-4 py-2.5 font-semibold text-gray-700">{cl.cliente_nombre}</td>
-                                              <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{cl.cliente_nit}</td>
-                                              <td className="px-4 py-2.5 text-gray-500 text-xs">{cl.ciudad || '—'}</td>
-                                              <td className="px-4 py-2.5 text-right font-bold text-gray-700">{fmtM(cl.total_deuda)}</td>
-                                              <td className="px-4 py-2.5 text-right text-green-700 font-semibold">{fmtM(cl.vigente)}</td>
-                                              <td className="px-4 py-2.5 text-right font-bold text-red-600">{mora90 > 0 ? fmtM(mora90) : <span className="text-green-600 text-xs font-semibold">Al día</span>}</td>
-                                              <td className="px-4 py-2.5 text-center">
-                                                {cl.dias_mora_max > 0
-                                                  ? <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-bold">{cl.dias_mora_max}d</span>
-                                                  : <span className="text-green-600 text-xs font-semibold">Al día</span>}
-                                              </td>
+                                {isOpen && (() => {
+                                  const cliPg2 = pagesAsesorCli[a.asesor] ?? 1
+                                  const cliPages2 = totalPages(a.clientes.length)
+                                  const cliItems2 = paginate(a.clientes, cliPg2)
+                                  const offset2   = (cliPg2 - 1) * PAGE_SIZE
+                                  return (
+                                    <>
+                                      <div className="border-t border-gray-100 overflow-x-auto">
+                                        <table className="w-full text-sm">
+                                          <thead className="bg-gray-100 text-gray-600 text-xs uppercase">
+                                            <tr>
+                                              <th className="px-5 py-2 text-left w-8">#</th>
+                                              <th className="px-4 py-2 text-left">Cliente</th>
+                                              <th className="px-4 py-2 text-left">NIT</th>
+                                              <th className="px-4 py-2 text-left">Ciudad</th>
+                                              <th className="px-4 py-2 text-right">Cartera</th>
+                                              <th className="px-4 py-2 text-right">Vigente</th>
+                                              <th className="px-4 py-2 text-right">Mora +90d</th>
+                                              <th className="px-4 py-2 text-center">Mora máx.</th>
                                             </tr>
-                                          )
-                                        })}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                )}
+                                          </thead>
+                                          <tbody>
+                                            {cliItems2.map((cl: AsesorCliente, ci: number) => {
+                                              const mora90 = cl.dias_91_180 + cl.mas_180_dias
+                                              return (
+                                                <tr key={cl.cliente_nit} className="border-t border-gray-100 hover:bg-gray-50 transition-colors">
+                                                  <td className="px-5 py-2.5 text-gray-400 text-xs">{offset2 + ci + 1}</td>
+                                                  <td className="px-4 py-2.5 font-semibold text-gray-700">{cl.cliente_nombre}</td>
+                                                  <td className="px-4 py-2.5 font-mono text-xs text-gray-500">{cl.cliente_nit}</td>
+                                                  <td className="px-4 py-2.5 text-gray-500 text-xs">{cl.ciudad || '—'}</td>
+                                                  <td className="px-4 py-2.5 text-right font-bold text-gray-700">{fmtM(cl.total_deuda)}</td>
+                                                  <td className="px-4 py-2.5 text-right text-green-700 font-semibold">{fmtM(cl.vigente)}</td>
+                                                  <td className="px-4 py-2.5 text-right font-bold text-red-600">{mora90 > 0 ? fmtM(mora90) : <span className="text-green-600 text-xs font-semibold">Al día</span>}</td>
+                                                  <td className="px-4 py-2.5 text-center">
+                                                    {cl.dias_mora_max > 0
+                                                      ? <span className="bg-red-100 text-red-800 px-2 py-0.5 rounded text-xs font-bold">{cl.dias_mora_max}d</span>
+                                                      : <span className="text-green-600 text-xs font-semibold">Al día</span>}
+                                                  </td>
+                                                </tr>
+                                              )
+                                            })}
+                                          </tbody>
+                                        </table>
+                                      </div>
+                                      {cliPages2 > 1 && (
+                                        <div className="px-5 py-2 bg-gray-50 border-t border-gray-100">
+                                          <PaginationControls
+                                            page={cliPg2}
+                                            pages={cliPages2}
+                                            onChange={p => setPagesAsesorCli(prev => ({ ...prev, [a.asesor]: p }))}
+                                          />
+                                        </div>
+                                      )}
+                                    </>
+                                  )
+                                })()}
                               </div>
                             )
                           })}

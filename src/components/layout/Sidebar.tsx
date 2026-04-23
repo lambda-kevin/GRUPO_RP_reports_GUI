@@ -3,7 +3,7 @@ import { useState } from 'react'
 import {
   LayoutDashboard, Wallet, Building2, MessageSquare,
   LogOut, ChevronLeft, ChevronRight, HandCoins,
-  Building, Clock, AlertCircle, MapPin, Layers, CreditCard, Users,
+  Building, Clock, AlertCircle, MapPin, CreditCard, Users,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { useAuth } from '../../hooks/useAuth'
@@ -27,7 +27,6 @@ const CARTERA_NAV = [
   { id: 'sec-edades',       label: 'Por edades',      icon: Clock       },
   { id: 'sec-vencimientos', label: 'Vencimientos',    icon: AlertCircle },
   { id: 'sec-region',       label: 'Por región',      icon: MapPin      },
-  { id: 'sec-linea',        label: 'Por línea',       icon: Layers      },
   { id: 'sec-anticipos',    label: 'Anticipos',       icon: CreditCard  },
   { id: 'sec-comercial',    label: 'Por comercial',   icon: Users       },
 ]
@@ -63,64 +62,56 @@ export const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
         ${collapsed ? 'w-20' : 'w-64'}
       `}
     >
-      {/* ── Logo + toggle ── */}
-      <div className="flex items-center justify-between px-4 py-5 border-b border-primary-800">
+      {/* ── Tab toggle flotante en el borde derecho ── */}
+      <button
+        onClick={onToggle}
+        title={collapsed ? 'Expandir menú' : 'Contraer menú'}
+        className="
+          absolute -right-4 top-6 z-40
+          h-8 w-8 rounded-full
+          bg-primary-600 text-white
+          border-2 border-primary-900
+          shadow-lg hover:bg-primary-500 active:scale-95
+          flex items-center justify-center
+          transition-all duration-150
+        "
+      >
+        {collapsed
+          ? <ChevronRight className="h-4 w-4" />
+          : <ChevronLeft className="h-4 w-4" />
+        }
+      </button>
+
+      {/* ── Logo ── */}
+      <div className="flex items-center gap-3 px-4 py-5 border-b border-primary-800">
+        <div className={`h-8 w-8 rounded-lg bg-primary-700/40 flex items-center justify-center shrink-0 overflow-hidden ${collapsed ? 'mx-auto' : ''}`}>
+          <img
+            src={logoSources[logoIndex]}
+            alt="Logo Grupo RP"
+            className="h-6 w-6 object-contain"
+            onError={() => {
+              if (logoIndex < logoSources.length - 1) setLogoIndex(logoIndex + 1)
+            }}
+          />
+        </div>
         {!collapsed && (
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="h-8 w-8 rounded-lg bg-primary-700/40 flex items-center justify-center shrink-0 overflow-hidden">
-              <img
-                src={logoSources[logoIndex]}
-                alt="Logo Grupo RP"
-                className="h-6 w-6 object-contain"
-                onError={() => {
-                  if (logoIndex < logoSources.length - 1) setLogoIndex(logoIndex + 1)
-                }}
-              />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-bold text-white leading-none truncate">Grupo RP</p>
-              <p className="text-xs text-primary-300 leading-tight truncate">Maestro de reportes</p>
-            </div>
+          <div className="min-w-0">
+            <p className="text-sm font-bold text-white leading-none truncate">GRUPO RP</p>
+            <p className="text-xs text-primary-300 leading-tight truncate">Maestro de reportes</p>
           </div>
         )}
-        {collapsed && (
-          <div className="mx-auto h-8 w-8 rounded-lg bg-primary-700/40 flex items-center justify-center overflow-hidden">
-            <img
-              src={logoSources[logoIndex]}
-              alt="Logo Grupo RP"
-              className="h-6 w-6 object-contain"
-              onError={() => {
-                if (logoIndex < logoSources.length - 1) setLogoIndex(logoIndex + 1)
-              }}
-            />
-          </div>
-        )}
-        <button
-          onClick={onToggle}
-          className={`
-            shrink-0 p-1.5 rounded-lg text-primary-400 hover:text-white hover:bg-primary-800
-            transition-colors
-            ${collapsed ? 'mx-auto mt-2' : ''}
-          `}
-          title={collapsed ? 'Expandir' : 'Contraer'}
-        >
-          {collapsed
-            ? <ChevronRight className="h-4 w-4" />
-            : <ChevronLeft className="h-4 w-4" />
-          }
-        </button>
       </div>
 
       {/* ── Nav ── */}
       <nav className="flex-1 px-2 py-4 space-y-0.5 overflow-y-auto">
-        {!collapsed && (
-          <p className="px-3 mb-2 text-xs font-bold text-primary-300 uppercase tracking-widest">
-            Panel Ejecutivo
-          </p>
-        )}
 
         {NAV_ITEMS.map(({ to, label, icon: Icon }) => (
           <div key={to}>
+            {to === '/cartera' && !collapsed && (
+              <p className="px-3 pt-3 pb-1 text-xs font-bold text-primary-300 uppercase tracking-widest">
+                Reportes Gerenciales RP
+              </p>
+            )}
             <NavLink
               to={to}
               className={({ isActive }) => `
@@ -142,7 +133,7 @@ export const Sidebar = ({ collapsed, onToggle }: SidebarProps) => {
               )}
             </NavLink>
 
-            {/* Sub-nav de cartera — solo visible cuando está en /cartera y sidebar expandido */}
+            {/* Sub-nav de cartera */}
             {to === '/cartera' && enCartera && !collapsed && (
               <div className="ml-4 mt-0.5 mb-1 pl-3 border-l border-primary-700 space-y-0.5">
                 {CARTERA_NAV.map(({ id, label: subLabel, icon: SubIcon }) => (
