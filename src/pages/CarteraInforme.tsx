@@ -372,10 +372,10 @@ const filtrarPorBusqueda = <T extends { cliente_nit?: string; cliente_nombre?: s
 // ─── Colores y helpers para Grupos Empresariales ─────────────────────────────
 
 const GRUPO_COLOR: Record<string, string> = {
-  'Grupo Zentria':    '#0f3460',
+  'Grupo Zentria':    '#272364',
   'Grupo SURA':       '#1d4ed8',
-  'Grupo Quirónsalud':'#7c3aed',
-  'Grupo AUNA':       '#0891b2',
+  'Grupo Quirónsalud':'#247777',
+  'Grupo AUNA':       '#6b8e23',
   'Otros':            '#94a3b8',
 }
 const grupoColor = (g: string) => GRUPO_COLOR[g] ?? '#64748b'
