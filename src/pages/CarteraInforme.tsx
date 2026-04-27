@@ -372,10 +372,10 @@ const filtrarPorBusqueda = <T extends { cliente_nit?: string; cliente_nombre?: s
 // ─── Colores y helpers para Grupos Empresariales ─────────────────────────────
 
 const GRUPO_COLOR: Record<string, string> = {
-  'Grupo Zentria':    '#0f3460',
+  'Grupo Zentria':    '#272364',
   'Grupo SURA':       '#1d4ed8',
-  'Grupo Quirónsalud':'#7c3aed',
-  'Grupo AUNA':       '#0891b2',
+  'Grupo Quirónsalud':'#247777',
+  'Grupo AUNA':       '#6b8e23',
   'Otros':            '#94a3b8',
 }
 const grupoColor = (g: string) => GRUPO_COLOR[g] ?? '#64748b'
@@ -1385,7 +1385,7 @@ export const CarteraInforme = () => {
                                     const globalIdx = microOffset + i
                                     return (
                                       <tr key={`${c.cliente_nit}-${globalIdx}`}
-                                        className={`border-t border-gray-100 hover:bg-indigo-50 transition-colors ${c.porcentaje_acumulado > 80 ? 'opacity-50' : ''}`}>
+                                        className="border-t border-gray-100 hover:bg-indigo-50 transition-colors">
                                         <td className="px-3 py-2 text-right text-gray-400 font-mono text-xs">{globalIdx + 1}</td>
                                         <td className="px-4 py-2 font-semibold text-gray-900 max-w-[200px] truncate">{c.cliente_nombre}</td>
                                         <td className="px-4 py-2">

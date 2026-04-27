@@ -218,14 +218,14 @@ export const Dashboard = () => {
                   <h3 className="text-base font-extrabold text-gray-700 uppercase tracking-wide mb-4">
                     DISTRIBUCIÓN POR TRAMO DE MORA
                   </h3>
-                  <ResponsiveContainer width="100%" height={220}>
+                  <ResponsiveContainer width="100%" height={180}>
                     <BarChart data={cartera.distribucion} margin={{ top: 4, right: 4, left: 0, bottom: 4 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
-                      <XAxis dataKey="tramo" tick={{ fontSize: 10, fill: '#111827' }} />
-                      <YAxis tick={{ fontSize: 10, fill: '#111827' }} tickFormatter={v => fmtCOPShort(v)} width={60} />
+                      <XAxis dataKey="tramo" tick={{ fontSize: 11, fill: '#111827' }} />
+                      <YAxis tick={{ fontSize: 11, fill: '#111827' }} tickFormatter={v => fmtCOPShort(v)} width={60} />
                       <Tooltip
                         formatter={(v: number) => fmtCOP(v as number)}
-                        contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
+                        contentStyle={{ fontSize: 13, borderRadius: 8, border: '1px solid #e5e7eb' }}
                       />
                       <Bar dataKey="monto" name="Monto" radius={[4, 4, 0, 0]}>
                         {cartera.distribucion.map((d) => (
@@ -235,13 +235,13 @@ export const Dashboard = () => {
                     </BarChart>
                   </ResponsiveContainer>
                   {/* Leyenda vertical con valores completos */}
-                  <div className="flex flex-col gap-1 mt-3">
+                  <div className="flex flex-col gap-2.5 mt-4">
                     {cartera.distribucion.filter(d => d.monto > 0).map(d => (
-                      <span key={d.tramo} className="flex items-center gap-2 text-xs text-gray-900">
-                        <span className="w-2.5 h-2.5 rounded-sm inline-block shrink-0" style={{ background: TRAMO_COLORS[d.tramo] ?? '#94a3b8' }} />
-                        <span className="w-16 shrink-0">{d.tramo}</span>
-                        <strong className="text-gray-900">{fmtCOP(d.monto)}</strong>
-                      </span>
+                      <div key={d.tramo} className="flex items-center gap-3">
+                        <span className="w-4 h-4 rounded-sm shrink-0" style={{ background: TRAMO_COLORS[d.tramo] ?? '#94a3b8' }} />
+                        <span className="w-20 shrink-0 text-sm font-semibold text-gray-700">{d.tramo}</span>
+                        <span className="text-sm font-bold text-gray-900">{fmtCOP(d.monto)}</span>
+                      </div>
                     ))}
                   </div>
                 </div>
