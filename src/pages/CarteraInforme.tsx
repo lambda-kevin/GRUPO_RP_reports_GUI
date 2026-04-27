@@ -1385,7 +1385,7 @@ export const CarteraInforme = () => {
                                     const globalIdx = microOffset + i
                                     return (
                                       <tr key={`${c.cliente_nit}-${globalIdx}`}
-                                        className={`border-t border-gray-100 hover:bg-indigo-50 transition-colors ${c.porcentaje_acumulado > 80 ? 'opacity-50' : ''}`}>
+                                        className="border-t border-gray-100 hover:bg-indigo-50 transition-colors">
                                         <td className="px-3 py-2 text-right text-gray-400 font-mono text-xs">{globalIdx + 1}</td>
                                         <td className="px-4 py-2 font-semibold text-gray-900 max-w-[200px] truncate">{c.cliente_nombre}</td>
                                         <td className="px-4 py-2">
