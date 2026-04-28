@@ -58,7 +58,8 @@ export const eliminarDestinatarioCartera = async (id: string): Promise<void> => 
   await apiClient.delete(`/cartera/destinatarios/${id}/`)
 }
 
-// ── Grupos empresariales ─────────────────────────────────────────────────────
+
+//---grupos empresariales-----------------------------------------
 
 export type MiembroGrupo = {
   id: string
