@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { DashboardResumen, SnapBancos, SnapCartera, LogEnvio, Factura, CiudadAgregada, ProximoVencimiento, AnalisisIA, LineaAgregada, GrupoAgregado, ParetoClienteItem, RegionAgregada, DashboardBancosRespuesta, DashboardTesoreriaRespuesta, SaldoFavorRespuesta, AsesorRespuesta, ConsolidacionBancos } from '../types'
+import type { DashboardResumen, SnapBancos, SnapCartera, LogEnvio, Factura, CiudadAgregada, ProximoVencimiento, AnalisisIA, LineaAgregada, GrupoAgregado, ParetoClienteItem, RegionAgregada, DashboardBancosRespuesta, DashboardTesoreriaRespuesta, SaldoFavorRespuesta, AsesorRespuesta } from '../types'
 
 export type FiltroFecha = { fecha?: string; fecha_desde?: string; fecha_hasta?: string }
 
@@ -58,8 +58,7 @@ export const eliminarDestinatarioCartera = async (id: string): Promise<void> => 
   await apiClient.delete(`/cartera/destinatarios/${id}/`)
 }
 
-
-//---grupos empresariales-----------------------------------------
+// ── Grupos empresariales ─────────────────────────────────────────────────────
 
 export type MiembroGrupo = {
   id: string
@@ -210,22 +209,5 @@ export const getSaldoFavor = async (filtro?: FiltroFecha): Promise<SaldoFavorRes
 
 export const getCarteraAsesores = async (filtro?: FiltroFecha): Promise<AsesorRespuesta> => {
   const { data } = await apiClient.get('/cartera/asesores/', { params: filtro ?? {} })
-  return data
-}
-
-// ── Bancos (consolidaciones diarias) ─────────────────────────────────────────
-
-export const getConsolidaciones = async (): Promise<ConsolidacionBancos[]> => {
-  const { data } = await apiClient.get('/bancos/consolidaciones/')
-  return data
-}
-
-export const getConsolidacionReciente = async (): Promise<ConsolidacionBancos> => {
-  const { data } = await apiClient.get('/bancos/consolidaciones/reciente/')
-  return data
-}
-
-export const getConsolidacionDetalle = async (id: number): Promise<ConsolidacionBancos> => {
-  const { data } = await apiClient.get(`/bancos/consolidaciones/${id}/`)
   return data
 }
