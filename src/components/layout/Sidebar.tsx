@@ -15,11 +15,12 @@ interface SidebarProps {
 }
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Panel Ejecutivo', icon: LayoutDashboard },
-  { to: '/cartera',   label: 'Cartera',         icon: Wallet          },
-  { to: '/bancos',    label: 'Bancos',           icon: Building2       },
-  { to: '/tesoreria', label: 'Tesorería',        icon: HandCoins       },
-  { to: '/agente',    label: 'Centro de Mando',  icon: MessageSquare   },
+  { to: '/dashboard',       label: 'Panel Ejecutivo',        icon: LayoutDashboard },
+  { to: '/cartera',         label: 'Cartera',                icon: Wallet          },
+  { to: '/bancos',          label: 'Bancos',                 icon: Building2       },
+  { to: '/bancos-dashboard',label: 'Facturación vs Cobranza',icon: CreditCard      },
+  { to: '/tesoreria',       label: 'Tesorería',              icon: HandCoins       },
+  { to: '/agente',          label: 'Centro de Mando',        icon: MessageSquare   },
 ]
 
 const CARTERA_NAV = [

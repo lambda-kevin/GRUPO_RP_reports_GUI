@@ -526,3 +526,37 @@ export interface AsesorRespuesta {
   asesores: AsesorItem[]
   total_general: number
 }
+
+// ── Bancos (consolidaciones diarias) ─────────────────────────────────────────
+
+export interface TransaccionBancos {
+  id: number
+  consolidacion_id: number
+  nombre_hoja: string | null
+  banco: string
+  cuenta: string | null
+  tipo_cuenta: string | null
+  saldo_banco: number | null
+  fecha: string | null
+  sin_cobrar: number | null
+  cobrado: number | null
+  documento: string | null
+  fecha_vencimiento: string | null
+  concepto: string | null
+  detalle: string | null
+  frecuencia: string | null
+  debito: number
+  credito: number
+  es_credito: boolean
+}
+
+export interface ConsolidacionBancos {
+  id: number
+  fecha_descarga: string
+  fecha_reporte: string | null
+  archivo_excel: string | null
+  fue_modificado: boolean
+  total_bancos: number
+  total_transacciones: number
+  transacciones?: TransaccionBancos[]
+}

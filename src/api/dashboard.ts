@@ -1,5 +1,5 @@
 import apiClient from './client'
-import type { DashboardResumen, SnapBancos, SnapCartera, LogEnvio, Factura, CiudadAgregada, ProximoVencimiento, AnalisisIA, LineaAgregada, GrupoAgregado, ParetoClienteItem, RegionAgregada, DashboardBancosRespuesta, DashboardTesoreriaRespuesta, SaldoFavorRespuesta, AsesorRespuesta } from '../types'
+import type { DashboardResumen, SnapBancos, SnapCartera, LogEnvio, Factura, CiudadAgregada, ProximoVencimiento, AnalisisIA, LineaAgregada, GrupoAgregado, ParetoClienteItem, RegionAgregada, DashboardBancosRespuesta, DashboardTesoreriaRespuesta, SaldoFavorRespuesta, AsesorRespuesta, ConsolidacionBancos } from '../types'
 
 export type FiltroFecha = { fecha?: string; fecha_desde?: string; fecha_hasta?: string }
 
@@ -210,4 +210,37 @@ export const getSaldoFavor = async (filtro?: FiltroFecha): Promise<SaldoFavorRes
 export const getCarteraAsesores = async (filtro?: FiltroFecha): Promise<AsesorRespuesta> => {
   const { data } = await apiClient.get('/cartera/asesores/', { params: filtro ?? {} })
   return data
+}
+
+// ── Bancos (consolidaciones diarias) ─────────────────────────────────────────
+
+export const getConsolidaciones = async (): Promise<ConsolidacionBancos[]> => {
+  const { data } = await apiClient.get('/bancos/consolidaciones/')
+  return data
+}
+
+export const getConsolidacionReciente = async (): Promise<ConsolidacionBancos> => {
+  const { data } = await apiClient.get('/bancos/consolidaciones/reciente/')
+  return data
+}
+
+export const getConsolidacionDetalle = async (id: number): Promise<ConsolidacionBancos> => {
+  const { data } = await apiClient.get(`/bancos/consolidaciones/${id}/`)
+  return data
+}
+
+export const descargarExcelConsolidacion = async (id: number, nombre?: string): Promise<void> => {
+  const response = await apiClient.get(`/bancos/consolidaciones/${id}/descargar/`, {
+    responseType: 'blob',
+  })
+  const url = window.URL.createObjectURL(new Blob([response.data]))
+  const link = document.createElement('a')
+  link.href = url
+  const header = response.headers['content-disposition'] as string | undefined
+  const filename = header?.match(/filename="?([^"]+)"?/)?.[1] ?? nombre ?? `consolidacion_${id}.xlsx`
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
 }
